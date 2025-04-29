@@ -1,23 +1,19 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import os
-from dotenv import load_dotenv
 import google.generativeai as genai
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
 
-# Load environment variables from the .env file
-load_dotenv()
-
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Set a secret key for sessions
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))  # Use environment variable if available
 
 # Load the GEMINI_API_KEY from environment variables
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your .env file.")
+    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Render environment variables.")
 
 # Configure the Gemini API client
 genai.configure(api_key=api_key)
@@ -41,10 +37,10 @@ model = genai.GenerativeModel(
 def create_db_connection():
     try:
         connection = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="",
-            database="baacdb"
+            host=os.getenv("DB_HOST", "localhost"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASSWORD", ""),
+            database=os.getenv("DB_NAME", "baacdb")
         )
         return connection
     except Error as e:
@@ -52,8 +48,8 @@ def create_db_connection():
         return None
 
 # Admin credentials (in a real-world scenario, these should be stored securely)
-ADMIN_KEY = "EASTER"
-ADMIN_PASS = "EGG"
+ADMIN_KEY = os.getenv("ADMIN_KEY", "EASTER")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "EGG")
 
 # Function to log conversations
 def log_conversation(user_input, ai_response):
@@ -277,5 +273,8 @@ def admin_stats():
             cursor.close()
             connection.close()
 
+# Use PORT environment variable provided by Render
+port = int(os.getenv("PORT", 8000))
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    app.run(debug=False, host='0.0.0.0', port=port)
