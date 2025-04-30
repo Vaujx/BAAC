@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import psycopg2
 from psycopg2 import pool
-import psycopg2.extras  # Added missing import for DictCursor
+import psycopg2.extras
 from datetime import datetime
 import logging
 
@@ -34,21 +34,20 @@ if not api_key:
     logger.error("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
     raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
 
-# Configure the Gemini API client
+# Configure the Gemini API client - using the older API style
 genai.configure(api_key=api_key)
 
-# Model configuration
+# Model configuration - removed response_mime_type
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
     "top_k": 40,
     "max_output_tokens": 8192,
-    # Remove the response_mime_type parameter
 }
 
 # Create the model instance
 model = genai.GenerativeModel(
-    model_name="gemini-2.0-flash-exp", 
+    model_name="gemini-2.0-flash", 
     generation_config=generation_config,
 )
 
@@ -360,14 +359,16 @@ def get_response():
                     "formType": requested_document
                 })
         else:
-            # Generate response for non-document queries
+            # Generate response for non-document queries using the older API style
             context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
             Always provide helpful and informative responses. Format your response in a clear and professional manner.
             If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Certificate.
             If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
             context += f"\nUser: {user_prompt}\nBAAC: "
 
-            response = model.generate_content([context], generation_config={"response_mime_type": "text/plain"})
+            # Using the older API style but without response_mime_type
+            response = model.generate_content(context)
+            
             response_text = f"""
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
                 <p>{response.text}</p>
