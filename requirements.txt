@@ -1,5 +1,28 @@
-Flask
-gunicorn
-python-dotenv
-google-generativeai
-mysql-connector-python
+# Web Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+Jinja2==3.1.2
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Google Generative AI
+google-generativeai==0.3.1
+
+# Database
+psycopg2-binary==2.9.9
+
+# Production Server
+gunicorn==21.2.0
+
+# Date and Time
+pytz==2023.3
+
+# Logging
+logging==0.4.9.6
+
+# Security
+itsdangerous==2.1.2
+
+# HTTP
+requests==2.31.0
