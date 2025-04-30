@@ -38,18 +38,201 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
-        #adminQuery {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        #adminResponse {
-            width: 100%;
-            min-height: 100px;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
+        .logout-btn {
+            background-color: #e53935;
+            color: white;
+            padding: 8px 16px;
+            border: none;
             border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        .logout-btn:hover {
+            background-color: #c62828;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            background-color: #f5f5f5;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab-button.active {
+            background-color: #e53935;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Document Management Styles */
+        .document-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .document-table th, 
+        .document-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .document-table th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+        }
+        .document-table tr:hover {
+            background-color: #f9f9f9;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-pending {
+            background-color: #FFF3CD;
+            color: #856404;
+        }
+        .status-approved {
+            background-color: #D4EDDA;
+            color: #155724;
+        }
+        .status-rejected {
+            background-color: #F8D7DA;
+            color: #721C24;
+        }
+        .status-claimed {
+            background-color: #CCE5FF;
+            color: #004085;
+        }
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 5px;
+            font-size: 12px;
+        }
+        .approve-btn {
+            background-color: #28A745;
+            color: white;
+        }
+        .reject-btn {
+            background-color: #DC3545;
+            color: white;
+        }
+        .claim-btn {
+            background-color: #007BFF;
+            color: white;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 50%;
+            max-width: 500px;
+        }
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-btn:hover {
+            color: black;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 100px;
+        }
+        .submit-btn {
+            background-color: #e53935;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .submit-btn:hover {
+            background-color: #c62828;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            padding: 8px 12px;
+            margin: 0 5px;
+            border: 1px solid #ddd;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .pagination button.active {
+            background-color: #e53935;
+            color: white;
+            border-color: #e53935;
+        }
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .filter-select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 150px;
         }
     </style>
 </head>
@@ -65,26 +248,114 @@
     </header>
 
     <div class="admin-container">
-        <h2>Today's Statistics</h2>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Website Visits</h3>
-                <p id="todayVisits">Loading...</p>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="dashboard">Dashboard</button>
+                <button class="tab-button" data-tab="documents">Document Management</button>
             </div>
-            <div class="stat-card">
-                <h3>Document Requests</h3>
-                <p id="todayRequests">Loading...</p>
+            
+            <div id="dashboard" class="tab-content active">
+                <h2>Today's Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Website Visits</h3>
+                        <p id="todayVisits">Loading...</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Document Requests</h3>
+                        <p id="todayRequests">Loading...</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Website Visits (Last 7 Days)</h3>
+                    <canvas id="visitsChart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Document Requests (Last 7 Days)</h3>
+                    <canvas id="requestsChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Document Requests by Type (Last 30 Days)</h3>
+                    <canvas id="documentTypesChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Document Requests by Status</h3>
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+            
+            <div id="documents" class="tab-content">
+                <h2>Document Management</h2>
+                
+                <div class="search-container">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search by name or reference number...">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="all">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Claimed">Claimed</option>
+                    </select>
+                    <select id="typeFilter" class="filter-select">
+                        <option value="all">All Types</option>
+                        <option value="barangay clearance">Barangay Clearance</option>
+                        <option value="barangay certificate">Barangay Certificate</option>
+                        <option value="barangay indigency">Barangay Indigency</option>
+                    </select>
+                </div>
+                
+                <div class="table-container">
+                    <table class="document-table" id="documentTable">
+                        <thead>
+                            <tr>
+                                <th>Ref #</th>
+                                <th>Type</th>
+                                <th>Name</th>
+                                <th>Purok</th>
+                                <th>Purpose</th>
+                                <th>Copies</th>
+                                <th>Date Requested</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documentTableBody">
+                            <tr>
+                                <td colspan="9" style="text-align: center;">Loading document requests...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" id="documentPagination">
+                    <!-- Pagination buttons will be added here -->
+                </div>
             </div>
         </div>
-
-        <div class="chart-container">
-            <h3>Website Visits (Last 7 Days)</h3>
-            <canvas id="visitsChart"></canvas>
-        </div>
-
-        <div class="chart-container">
-            <h3>Document Requests (Last 7 Days)</h3>
-            <canvas id="requestsChart"></canvas>
+    </div>
+    
+    <!-- Status Update Modal -->
+    <div id="statusModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal">&times;</span>
+            <h3 id="modalTitle">Update Document Status</h3>
+            <form id="statusUpdateForm">
+                <input type="hidden" id="documentId">
+                <input type="hidden" id="statusAction">
+                
+                <div class="form-group">
+                    <label for="notes">Notes (optional):</label>
+                    <textarea id="notes" placeholder="Add any notes or comments about this status change"></textarea>
+                </div>
+                
+                <button type="submit" class="submit-btn">Update Status</button>
+            </form>
         </div>
     </div>
 
@@ -93,6 +364,37 @@
     </footer>
 
     <script>
+        // Tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+                    
+                    // Remove active class from all buttons and contents
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Add active class to clicked button and corresponding content
+                    button.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                    
+                    // If documents tab is clicked, load document requests
+                    if (tabId === 'documents') {
+                        loadDocumentRequests();
+                    }
+                });
+            });
+            
+            // Dashboard charts and stats
+            fetchAdminStats();
+            
+            // Document management
+            setupDocumentManagement();
+        });
+        
         function fetchAdminStats() {
             fetch('/admin_stats')
                 .then(response => response.json())
@@ -100,23 +402,33 @@
                     document.getElementById('todayVisits').textContent = data.today_visits;
                     document.getElementById('todayRequests').textContent = data.today_requests;
 
-                    createChart('visitsChart', 'Website Visits', data.visits_data);
-                    createChart('requestsChart', 'Document Requests', data.requests_data);
+                    createLineChart('visitsChart', 'Website Visits', data.visits_data, 'visit_date', 'visit_count');
+                    createLineChart('requestsChart', 'Document Requests', data.requests_data, 'request_date', 'total_requests');
+                    
+                    if (data.document_types_data) {
+                        createBarChart('documentTypesChart', data.document_types_data, 'document_type', 'total_requests', 'Document Type', 'Number of Requests');
+                    }
+                    
+                    if (data.status_data) {
+                        createBarChart('statusChart', data.status_data, 'status', 'count', 'Status', 'Number of Documents');
+                    }
                 })
                 .catch(error => console.error('Error fetching admin stats:', error));
         }
 
-        function createChart(canvasId, label, data) {
+        function createLineChart(canvasId, label, data, dateField, valueField) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.map(item => item.visit_date || item.request_date),
+                    labels: data.map(item => item[dateField]),
                     datasets: [{
                         label: label,
-                        data: data.map(item => item.visit_count || item.total_requests),
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
+                        data: data.map(item => item[valueField]),
+                        borderColor: 'rgb(229, 57, 53)',
+                        backgroundColor: 'rgba(229, 57, 53, 0.1)',
+                        tension: 0.1,
+                        fill: true
                     }]
                 },
                 options: {
@@ -129,10 +441,296 @@
                 }
             });
         }
-
-      
-
-        fetchAdminStats();
+        
+        function createBarChart(canvasId, data, labelField, valueField, xAxisLabel, yAxisLabel) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(item => item[labelField]),
+                    datasets: [{
+                        label: yAxisLabel,
+                        data: data.map(item => item[valueField]),
+                        backgroundColor: [
+                            'rgba(229, 57, 53, 0.7)',
+                            'rgba(198, 40, 40, 0.7)',
+                            'rgba(183, 28, 28, 0.7)',
+                            'rgba(136, 14, 79, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(229, 57, 53)',
+                            'rgb(198, 40, 40)',
+                            'rgb(183, 28, 28)',
+                            'rgb(136, 14, 79)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: xAxisLabel
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Document Management
+        function setupDocumentManagement() {
+            // Modal elements
+            const modal = document.getElementById('statusModal');
+            const closeModal = document.getElementById('closeModal');
+            const statusUpdateForm = document.getElementById('statusUpdateForm');
+            
+            // Search and filter elements
+            const searchInput = document.getElementById('searchInput');
+            const statusFilter = document.getElementById('statusFilter');
+            const typeFilter = document.getElementById('typeFilter');
+            
+            // Close modal when clicking the X
+            closeModal.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+            
+            // Close modal when clicking outside of it
+            window.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+            
+            // Handle status update form submission
+            statusUpdateForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const documentId = document.getElementById('documentId').value;
+                const status = document.getElementById('statusAction').value;
+                const notes = document.getElementById('notes').value;
+                
+                updateDocumentStatus(documentId, status, notes);
+            });
+            
+            // Handle search and filters
+            searchInput.addEventListener('input', filterDocuments);
+            statusFilter.addEventListener('change', filterDocuments);
+            typeFilter.addEventListener('change', filterDocuments);
+        }
+        
+        let allDocuments = []; // Store all documents for filtering
+        let currentPage = 1;
+        const documentsPerPage = 10;
+        
+        function loadDocumentRequests() {
+            fetch('/admin/document_requests')
+                .then(response => response.json())
+                .then(data => {
+                    allDocuments = data;
+                    displayDocuments(allDocuments, currentPage);
+                    setupPagination(allDocuments.length);
+                })
+                .catch(error => console.error('Error fetching document requests:', error));
+        }
+        
+        function displayDocuments(documents, page) {
+            const tableBody = document.getElementById('documentTableBody');
+            tableBody.innerHTML = '';
+            
+            if (documents.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No document requests found</td></tr>';
+                return;
+            }
+            
+            // Calculate pagination
+            const startIndex = (page - 1) * documentsPerPage;
+            const endIndex = startIndex + documentsPerPage;
+            const paginatedDocs = documents.slice(startIndex, endIndex);
+            
+            paginatedDocs.forEach(doc => {
+                const row = document.createElement('tr');
+                
+                // Format date for display
+                const requestDate = new Date(doc.submission_date).toLocaleDateString();
+                
+                // Create status badge
+                const statusBadge = `<span class="status-badge status-${doc.status.toLowerCase()}">${doc.status}</span>`;
+                
+                // Create action buttons based on current status
+                let actionButtons = '';
+                
+                if (doc.status === 'Pending') {
+                    actionButtons = `
+                        <button class="action-btn approve-btn" onclick="showStatusModal(${doc.id}, 'Approved')">Approve</button>
+                        <button class="action-btn reject-btn" onclick="showStatusModal(${doc.id}, 'Rejected')">Reject</button>
+                    `;
+                } else if (doc.status === 'Approved') {
+                    actionButtons = `
+                        <button class="action-btn claim-btn" onclick="showStatusModal(${doc.id}, 'Claimed')">Mark as Claimed</button>
+                    `;
+                }
+                
+                row.innerHTML = `
+                    <td>REF-${doc.id}</td>
+                    <td>${doc.document_type.charAt(0).toUpperCase() + doc.document_type.slice(1)}</td>
+                    <td>${doc.name}</td>
+                    <td>${doc.purok}</td>
+                    <td>${doc.purpose}</td>
+                    <td>${doc.copies || 'N/A'}</td>
+                    <td>${requestDate}</td>
+                    <td>${statusBadge}</td>
+                    <td>${actionButtons}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function setupPagination(totalDocuments) {
+            const paginationContainer = document.getElementById('documentPagination');
+            paginationContainer.innerHTML = '';
+            
+            const totalPages = Math.ceil(totalDocuments / documentsPerPage);
+            
+            if (totalPages <= 1) {
+                return;
+            }
+            
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.textContent = '←';
+            prevButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    displayDocuments(allDocuments, currentPage);
+                    updatePaginationButtons();
+                }
+            });
+            paginationContainer.appendChild(prevButton);
+            
+            // Page buttons
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.classList.toggle('active', i === currentPage);
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    displayDocuments(allDocuments, currentPage);
+                    updatePaginationButtons();
+                });
+                paginationContainer.appendChild(pageButton);
+            }
+            
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.textContent = '→';
+            nextButton.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    displayDocuments(allDocuments, currentPage);
+                    updatePaginationButtons();
+                }
+            });
+            paginationContainer.appendChild(nextButton);
+        }
+        
+        function updatePaginationButtons() {
+            const buttons = document.querySelectorAll('#documentPagination button');
+            buttons.forEach((button, index) => {
+                // Skip first and last buttons (prev/next)
+                if (index === 0 || index === buttons.length - 1) return;
+                
+                const pageNum = parseInt(button.textContent);
+                button.classList.toggle('active', pageNum === currentPage);
+            });
+        }
+        
+        function filterDocuments() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            
+            let filteredDocs = allDocuments.filter(doc => {
+                // Search term filter
+                const matchesSearch = 
+                    doc.name.toLowerCase().includes(searchTerm) || 
+                    (`REF-${doc.id}`).toLowerCase().includes(searchTerm);
+                
+                // Status filter
+                const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
+                
+                // Type filter
+                const matchesType = typeFilter === 'all' || doc.document_type === typeFilter;
+                
+                return matchesSearch && matchesStatus && matchesType;
+            });
+            
+            currentPage = 1; // Reset to first page when filtering
+            displayDocuments(filteredDocs, currentPage);
+            setupPagination(filteredDocs.length);
+        }
+        
+        function showStatusModal(documentId, status) {
+            const modal = document.getElementById('statusModal');
+            const modalTitle = document.getElementById('modalTitle');
+            
+            document.getElementById('documentId').value = documentId;
+            document.getElementById('statusAction').value = status;
+            document.getElementById('notes').value = '';
+            
+            // Set modal title based on action
+            if (status === 'Approved') {
+                modalTitle.textContent = 'Approve Document Request';
+            } else if (status === 'Rejected') {
+                modalTitle.textContent = 'Reject Document Request';
+            } else if (status === 'Claimed') {
+                modalTitle.textContent = 'Mark Document as Claimed';
+            }
+            
+            modal.style.display = 'block';
+        }
+        
+        function updateDocumentStatus(documentId, status, notes) {
+            fetch('/admin/update_document_status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: documentId,
+                    status: status,
+                    notes: notes
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Close modal
+                    document.getElementById('statusModal').style.display = 'none';
+                    
+                    // Reload document requests
+                    loadDocumentRequests();
+                    
+                    // Refresh dashboard stats
+                    fetchAdminStats();
+                    
+                    // Show success message
+                    alert(`Document status updated to ${status}`);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to update document status'));
+                }
+            })
+            .catch(error => {
+                console.error('Error updating document status:', error);
+                alert('Error updating document status. Please try again.');
+            });
+        }
     </script>
 </body>
 </html>
