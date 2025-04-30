@@ -43,7 +43,7 @@ generation_config = {
     "top_p": 0.95,
     "top_k": 40,
     "max_output_tokens": 8192,
-    "response_mime_type": "text/plain",
+    # Remove the response_mime_type parameter
 }
 
 # Create the model instance
@@ -367,7 +367,7 @@ def get_response():
             If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
             context += f"\nUser: {user_prompt}\nBAAC: "
 
-            response = model.generate_content([context])
+            response = model.generate_content([context], generation_config={"response_mime_type": "text/plain"})
             response_text = f"""
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
                 <p>{response.text}</p>
