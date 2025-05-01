@@ -52,7 +52,7 @@ model = genai.GenerativeModel(
 )
 
 # Available document types
-AVAILABLE_DOCUMENTS = ["barangay clearance", "barangay indigency", "barangay certificate"]
+AVAILABLE_DOCUMENTS = ["barangay clearance", "barangay indigency", "barangay residency"]
 
 # Admin credentials from environment variables
 ADMIN_KEY = os.getenv("ADMIN_KEY", "EASTER")
@@ -329,7 +329,7 @@ def get_response():
                         <p><strong>Available Document Types:</strong></p>
                         <ul style="margin-top: 10px; padding-left: 20px;">
                             <li><strong>Barangay Clearance</strong></li>
-                            <li><strong>Barangay Certificate</strong></li>
+                            <li><strong>Barangay Residency</strong></li>
                             <li><strong>Barangay Indigency</strong></li>
                         </ul>
                         <p style="margin-top: 10px; font-style: italic; color: #666;">Note: Only these three document types can be requested through this system.</p>
@@ -362,7 +362,7 @@ def get_response():
             # Generate response for non-document queries using the older API style
             context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
             Always provide helpful and informative responses. Format your response in a clear and professional manner.
-            If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Certificate.
+            If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
             If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
             context += f"\nUser: {user_prompt}\nBAAC: "
 
@@ -403,7 +403,7 @@ def submit_document():
             cursor = connection.cursor()
             
             # Different fields based on document type
-            if document_type in ["barangay clearance", "barangay certificate"]:
+            if document_type in ["barangay clearance", "barangay Residency"]:
                 query = """
                 INSERT INTO document_submissions 
                 (document_type, request_date, name, purok, purpose, submission_date, status)
