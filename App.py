@@ -403,7 +403,7 @@ def submit_document():
             cursor = connection.cursor()
             
             # Different fields based on document type
-            if document_type in ["barangay clearance", "barangay Residency"]:
+            if document_type in ["barangay clearance", "barangay residency"]:
                 query = """
                 INSERT INTO document_submissions 
                 (document_type, request_date, name, purok, purpose, submission_date, status)
