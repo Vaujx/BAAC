@@ -309,7 +309,7 @@ def get_response():
                     return jsonify({"response": response_text})
         
         # Check if this is a document request or inquiry
-        is_document_related = any(word in user_prompt_lower for word in ['document', 'clearance', 'certificate', 'indigency', 'request', 'requirements'])
+        is_document_related = any(word in user_prompt_lower for word in ['document', 'clearance', 'residency', 'indigency', 'request', 'requirements'])
         
         if is_document_related:
             # Determine which document type was requested
