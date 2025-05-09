@@ -234,6 +234,203 @@
             border-radius: 4px;
             min-width: 150px;
         }
+        
+        /* Settings Tab Styles */
+        .settings-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        /* Date Range Selector Styles */
+        .date-range-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: flex-end;
+        }
+
+        .date-range-selector .form-group {
+            margin-bottom: 0;
+        }
+
+        /* Report Options Styles */
+        .report-options {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .report-options h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #e53935;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Graph container for reports */
+        .report-graph {
+            margin: 15px 0;
+            height: 300px;
+            width: 100%;
+        }
+
+        .report-container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            min-height: 200px;
+        }
+
+        .report-section {
+            margin-bottom: 20px;
+        }
+
+        .report-section h4 {
+            margin-bottom: 10px;
+            color: #e53935;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .report-table th, 
+        .report-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .report-table th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+        }
+
+        .ai-insights {
+            background-color: #f8f9fa;
+            border-left: 3px solid #e53935;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        /* Print styles */
+        @media print {
+            /* Hide everything except the report */
+            body * {
+                visibility: hidden;
+            }
+            
+            /* Make the report container and its contents visible */
+            #customReportContainer, 
+            #customReportContainer * {
+                visibility: visible;
+            }
+            
+            /* Position the report at the top of the page */
+            #customReportContainer {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background-color: white;
+                padding: 20px;
+            }
+            
+            /* Hide UI elements that shouldn't be printed */
+            .main-header, 
+            .tab-buttons, 
+            .date-range-selector, 
+            .report-options, 
+            #printReportBtn,
+            #refreshReportBtn,
+            #generateReportBtn {
+                display: none !important;
+            }
+            
+            /* Ensure graphs print properly */
+            .report-graph {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                height: 300px !important;
+                width: 100% !important;
+                margin: 20px 0;
+                display: block !important;
+            }
+            
+            /* Make sure canvas elements are visible */
+            canvas {
+                display: block !important;
+                visibility: visible !important;
+                height: auto !important;
+                max-width: 100% !important;
+            }
+            
+            /* Ensure tables break properly between pages */
+            .report-table {
+                page-break-inside: auto;
+                width: 100%;
+            }
+            
+            .report-table tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            
+            .report-section {
+                page-break-inside: avoid;
+                margin-bottom: 30px;
+            }
+            
+            /* Add page breaks before sections */
+            .report-section {
+                page-break-before: auto;
+            }
+            
+            /* Ensure text is black for better printing */
+            body {
+                color: black;
+            }
+            
+            /* Ensure background colors print */
+            .report-section, .ai-insights, .report-table th {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -254,6 +451,7 @@
             <div class="tab-buttons">
                 <button class="tab-button active" data-tab="dashboard">Dashboard</button>
                 <button class="tab-button" data-tab="documents">Document Management</button>
+                <button class="tab-button" data-tab="settings">Settings</button>
             </div>
             
             <div id="dashboard" class="tab-content active">
@@ -287,6 +485,59 @@
                 <div class="chart-container">
                     <h3>Document Requests by Status</h3>
                     <canvas id="statusChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Custom Date Range Report</h3>
+                    <div class="date-range-selector">
+                        <div class="form-group">
+                            <label for="startDate">Start Date:</label>
+                            <input type="date" id="startDate" value="{{ (now - timedelta(days=7)).strftime('%Y-%m-%d') }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="endDate">End Date:</label>
+                            <input type="date" id="endDate" value="{{ now.strftime('%Y-%m-%d') }}">
+                        </div>
+                    </div>
+                    
+                    <div class="report-options">
+                        <h4>Select sections to include in report:</h4>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeVisits" checked>
+                                <label for="includeVisits">Website Visits</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeDocRequests" checked>
+                                <label for="includeDocRequests">Document Requests</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeDocStatus" checked>
+                                <label for="includeDocStatus">Document Status</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeAiInsights" checked>
+                                <label for="includeAiInsights">AI Insights</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeUserQueries" checked>
+                                <label for="includeUserQueries">Common User Queries</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeGraphs" checked>
+                                <label for="includeGraphs">Include Graphs</label>
+                            </div>
+                        </div>
+                        <div class="report-actions">
+                            <button id="refreshReportBtn" class="action-btn">Refresh Report</button>
+                            <button id="generateReportBtn" class="action-btn">Generate Report</button>
+                            <button id="printReportBtn" class="action-btn" disabled>Print Report</button>
+                        </div>
+                    </div>
+                    
+                    <div id="customReportContainer" class="report-container">
+                        <p>Select a date range and click "Generate Report" to view statistics.</p>
+                    </div>
                 </div>
             </div>
             
@@ -335,6 +586,33 @@
                 
                 <div class="pagination" id="documentPagination">
                     <!-- Pagination buttons will be added here -->
+                </div>
+            </div>
+            
+            <div id="settings" class="tab-content">
+                <h2>Admin Settings</h2>
+                
+                <div class="settings-card">
+                    <h3>Change Admin Credentials</h3>
+                    <form id="adminCredentialsForm">
+                        <div class="form-group">
+                            <label for="currentKey">Current Admin Key:</label>
+                            <input type="text" id="currentKey" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="currentPass">Current Admin Password:</label>
+                            <input type="password" id="currentPass" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newKey">New Admin Key:</label>
+                            <input type="text" id="newKey" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newPass">New Admin Password:</label>
+                            <input type="password" id="newPass" required>
+                        </div>
+                        <button type="submit" class="submit-btn">Update Credentials</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -393,7 +671,32 @@
             
             // Document management
             setupDocumentManagement();
+            
+            // Admin Settings
+            setupAdminSettings();
+            
+            // Custom Report
+            setupCustomReport();
+            
+            // Setup checkbox event listeners to refresh the report when options change
+            document.getElementById('includeVisits').addEventListener('change', refreshReportIfDataExists);
+            document.getElementById('includeDocRequests').addEventListener('change', refreshReportIfDataExists);
+            document.getElementById('includeDocStatus').addEventListener('change', refreshReportIfDataExists);
+            document.getElementById('includeAiInsights').addEventListener('change', refreshReportIfDataExists);
+            document.getElementById('includeUserQueries').addEventListener('change', refreshReportIfDataExists);
+            document.getElementById('includeGraphs').addEventListener('change', refreshReportIfDataExists);
         });
+        
+        // Store the last report data to avoid unnecessary API calls
+        let lastReportData = null;
+        let lastStartDate = null;
+        let lastEndDate = null;
+        
+        function refreshReportIfDataExists() {
+            if (lastReportData) {
+                renderCustomReport(lastReportData, lastStartDate, lastEndDate);
+            }
+        }
         
         function fetchAdminStats() {
             fetch('/admin_stats')
@@ -730,6 +1033,488 @@
                 console.error('Error updating document status:', error);
                 alert('Error updating document status. Please try again.');
             });
+        }
+        
+        // Admin Settings
+        function setupAdminSettings() {
+            const adminCredentialsForm = document.getElementById('adminCredentialsForm');
+            
+            adminCredentialsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const currentKey = document.getElementById('currentKey').value;
+                const currentPass = document.getElementById('currentPass').value;
+                const newKey = document.getElementById('newKey').value;
+                const newPass = document.getElementById('newPass').value;
+                
+                fetch('/admin/update_credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        currentKey: currentKey,
+                        currentPass: currentPass,
+                        newKey: newKey,
+                        newPass: newPass
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Admin credentials updated successfully!');
+                        adminCredentialsForm.reset();
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to update credentials'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating credentials:', error);
+                    alert('Error updating credentials. Please try again.');
+                });
+            });
+        }
+        
+        // Custom Date Range Report
+        function setupCustomReport() {
+            const generateReportBtn = document.getElementById('generateReportBtn');
+            const refreshReportBtn = document.getElementById('refreshReportBtn');
+            const printReportBtn = document.getElementById('printReportBtn');
+            
+            generateReportBtn.addEventListener('click', function() {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                
+                if (!startDate || !endDate) {
+                    alert('Please select both start and end dates');
+                    return;
+                }
+                
+                // Disable the button while loading
+                this.disabled = true;
+                this.textContent = 'Loading...';
+                
+                fetch('/admin/custom_report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        startDate: startDate,
+                        endDate: endDate
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Store the data for refreshing without API call
+                        lastReportData = data;
+                        lastStartDate = startDate;
+                        lastEndDate = endDate;
+                        
+                        renderCustomReport(data, startDate, endDate);
+                        printReportBtn.disabled = false;
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to generate report'));
+                        document.getElementById('customReportContainer').innerHTML = 
+                            '<p>Error generating report. Please try again.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error generating report:', error);
+                    document.getElementById('customReportContainer').innerHTML = 
+                        '<p>Error generating report. Please try again.</p>';
+                })
+                .finally(() => {
+                    // Re-enable the button
+                    this.disabled = false;
+                    this.textContent = 'Generate Report';
+                });
+            });
+            
+            refreshReportBtn.addEventListener('click', function() {
+                if (lastReportData) {
+                    renderCustomReport(lastReportData, lastStartDate, lastEndDate);
+                } else {
+                    alert('Please generate a report first');
+                }
+            });
+            
+            printReportBtn.addEventListener('click', function() {
+                // Prepare for printing
+                prepareForPrinting();
+                
+                // Use setTimeout to allow the browser to render the charts before printing
+                setTimeout(function() {
+                    window.print();
+                }, 500);
+            });
+        }
+        
+        // Function to prepare the report for printing
+        function prepareForPrinting() {
+            // Make sure all charts are properly rendered
+            const reportGraphs = document.querySelectorAll('.report-graph canvas');
+            reportGraphs.forEach(canvas => {
+                // Ensure canvas is visible
+                canvas.style.display = 'block';
+                canvas.style.visibility = 'visible';
+            });
+        }
+        
+        // Global chart objects to keep track of them
+        let reportCharts = {};
+        
+        function renderCustomReport(data, startDate, endDate) {
+            const container = document.getElementById('customReportContainer');
+            const formattedStartDate = new Date(startDate).toLocaleDateString();
+            const formattedEndDate = new Date(endDate).toLocaleDateString();
+            
+            // Get checkbox states
+            const includeVisits = document.getElementById('includeVisits').checked;
+            const includeDocRequests = document.getElementById('includeDocRequests').checked;
+            const includeDocStatus = document.getElementById('includeDocStatus').checked;
+            const includeAiInsights = document.getElementById('includeAiInsights').checked;
+            const includeUserQueries = document.getElementById('includeUserQueries').checked;
+            const includeGraphs = document.getElementById('includeGraphs').checked;
+            
+            // Destroy any existing charts to prevent memory leaks
+            Object.values(reportCharts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            reportCharts = {};
+            
+            let html = `
+                <div class="report-header">
+                    <h3>Barangay Amungan Chatbot Report</h3>
+                    <p>Period: ${formattedStartDate} to ${formattedEndDate}</p>
+                    <p>Generated on: ${new Date().toLocaleString()}</p>
+                </div>
+            `;
+            
+            // Website Visits Section
+            if (includeVisits) {
+                html += `
+                    <div class="report-section">
+                        <h4>Website Visits</h4>
+                        <p>Total visits during this period: <strong>${data.totalVisits}</strong></p>
+                `;
+                
+                if (includeGraphs) {
+                    html += `<div id="visitsReportChart" class="report-graph"><canvas></canvas></div>`;
+                }
+                
+                html += `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Visits</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.visitsData.forEach(visit => {
+                    html += `
+                        <tr>
+                            <td>${new Date(visit.visit_date).toLocaleDateString()}</td>
+                            <td>${visit.visit_count}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            // Document Requests Section
+            if (includeDocRequests) {
+                html += `
+                    <div class="report-section">
+                        <h4>Document Requests</h4>
+                        <p>Total document requests during this period: <strong>${data.totalRequests}</strong></p>
+                `;
+                
+                if (includeGraphs) {
+                    html += `<div id="docTypeReportChart" class="report-graph"><canvas></canvas></div>`;
+                }
+                
+                html += `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Document Type</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.documentTypesData.forEach(doc => {
+                    const percentage = ((doc.total_requests / data.totalRequests) * 100).toFixed(1);
+                    html += `
+                        <tr>
+                            <td>${doc.document_type}</td>
+                            <td>${doc.total_requests}</td>
+                            <td>${percentage}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            // Document Status Section
+            if (includeDocStatus) {
+                html += `
+                    <div class="report-section">
+                        <h4>Document Status</h4>
+                `;
+                
+                if (includeGraphs) {
+                    html += `<div id="statusReportChart" class="report-graph"><canvas></canvas></div>`;
+                }
+                
+                html += `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.statusData.forEach(status => {
+                    const percentage = ((status.count / data.totalDocuments) * 100).toFixed(1);
+                    html += `
+                        <tr>
+                            <td>${status.status}</td>
+                            <td>${status.count}</td>
+                            <td>${percentage}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            // AI Insights Section
+            if (includeAiInsights && data.aiInsights) {
+                html += `
+                    <div class="report-section">
+                        <h4>AI Insights</h4>
+                        <div class="ai-insights">
+                            ${data.aiInsights}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Common User Queries Section
+            if (includeUserQueries && data.topQueries && data.topQueries.length > 0) {
+                html += `
+                    <div class="report-section">
+                        <h4>Common User Queries</h4>
+                `;
+                
+                if (includeGraphs) {
+                    html += `<div id="queriesReportChart" class="report-graph"><canvas></canvas></div>`;
+                }
+                
+                html += `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Query</th>
+                                    <th>Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.topQueries.forEach(query => {
+                    html += `
+                        <tr>
+                            <td>${query.query}</td>
+                            <td>${query.count}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+            
+            // Create charts if graphs are enabled
+            if (includeGraphs) {
+                // Website Visits Chart
+                if (includeVisits && data.visitsData.length > 0) {
+                    const visitsChartElement = document.querySelector('#visitsReportChart canvas');
+                    if (visitsChartElement) {
+                        const ctx = visitsChartElement.getContext('2d');
+                        reportCharts.visits = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: data.visitsData.map(item => new Date(item.visit_date).toLocaleDateString()),
+                                datasets: [{
+                                    label: 'Website Visits',
+                                    data: data.visitsData.map(item => item.visit_count),
+                                    borderColor: 'rgb(229, 57, 53)',
+                                    backgroundColor: 'rgba(229, 57, 53, 0.1)',
+                                    tension: 0.1,
+                                    fill: true
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                // Document Types Chart
+                if (includeDocRequests && data.documentTypesData.length > 0) {
+                    const docTypeChartElement = document.querySelector('#docTypeReportChart canvas');
+                    if (docTypeChartElement) {
+                        const ctx = docTypeChartElement.getContext('2d');
+                        reportCharts.docTypes = new Chart(ctx, {
+                            type: 'pie',
+                            data: {
+                                labels: data.documentTypesData.map(item => item.document_type),
+                                datasets: [{
+                                    data: data.documentTypesData.map(item => item.total_requests),
+                                    backgroundColor: [
+                                        'rgba(229, 57, 53, 0.7)',
+                                        'rgba(198, 40, 40, 0.7)',
+                                        'rgba(183, 28, 28, 0.7)',
+                                        'rgba(136, 14, 79, 0.7)'
+                                    ],
+                                    borderColor: [
+                                        'rgb(229, 57, 53)',
+                                        'rgb(198, 40, 40)',
+                                        'rgb(183, 28, 28)',
+                                        'rgb(136, 14, 79)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        position: 'right',
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                // Status Chart
+                if (includeDocStatus && data.statusData.length > 0) {
+                    const statusChartElement = document.querySelector('#statusReportChart canvas');
+                    if (statusChartElement) {
+                        const ctx = statusChartElement.getContext('2d');
+                        reportCharts.status = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: data.statusData.map(item => item.status),
+                                datasets: [{
+                                    label: 'Document Status',
+                                    data: data.statusData.map(item => item.count),
+                                    backgroundColor: [
+                                        'rgba(255, 193, 7, 0.7)',
+                                        'rgba(40, 167, 69, 0.7)',
+                                        'rgba(220, 53, 69, 0.7)',
+                                        'rgba(0, 123, 255, 0.7)'
+                                    ],
+                                    borderColor: [
+                                        'rgb(255, 193, 7)',
+                                        'rgb(40, 167, 69)',
+                                        'rgb(220, 53, 69)',
+                                        'rgb(0, 123, 255)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                // User Queries Chart
+                if (includeUserQueries && data.topQueries && data.topQueries.length > 0) {
+                    const queriesChartElement = document.querySelector('#queriesReportChart canvas');
+                    if (queriesChartElement) {
+                        const ctx = queriesChartElement.getContext('2d');
+                        reportCharts.queries = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: data.topQueries.slice(0, 5).map(item => {
+                                    // Truncate long queries for better display
+                                    return item.query.length > 30 ? item.query.substring(0, 30) + '...' : item.query;
+                                }),
+                                datasets: [{
+                                    label: 'Query Count',
+                                    data: data.topQueries.slice(0, 5).map(item => item.count),
+                                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                indexAxis: 'y',
+                                scales: {
+                                    x: {
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            
+            // Enable the print button
+            document.getElementById('printReportBtn').disabled = false;
         }
     </script>
 </body>
