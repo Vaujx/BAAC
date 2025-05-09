@@ -5,8 +5,9 @@ import google.generativeai as genai
 import psycopg2
 from psycopg2 import pool
 import psycopg2.extras
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -205,6 +206,109 @@ def get_document_status(reference_id):
         if connection is not None:
             return_connection(connection)
 
+# Helper function to detect document type in a query
+def detect_document_type(query):
+    query_lower = query.lower()
+    
+    # Check for barangay clearance
+    if "clearance" in query_lower:
+        return "barangay clearance"
+    
+    # Check for barangay indigency (including common misspellings)
+    if any(word in query_lower for word in ["indigency", "indengency", "indengecy", "indegency"]):
+        return "barangay indigency"
+    
+    # Check for barangay residency
+    if "residency" in query_lower:
+        return "barangay residency"
+    
+    # If no specific document type is found, check for general document mentions
+    for doc_type in AVAILABLE_DOCUMENTS:
+        if doc_type in query_lower:
+            return doc_type
+    
+    return None
+
+# Load admin credentials from database
+def load_admin_credentials():
+    global ADMIN_KEY, ADMIN_PASS
+    
+    connection = get_connection()
+    if connection is None:
+        logger.warning("Could not load admin credentials from database, using defaults")
+        return
+        
+    try:
+        cursor = connection.cursor()
+        
+        # Check if env_variables table exists
+        cursor.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'env_variables'
+        );
+        """)
+        
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            logger.info("env_variables table does not exist, using default admin credentials")
+            return
+            
+        # Get ADMIN_KEY
+        cursor.execute("SELECT value FROM env_variables WHERE key = 'ADMIN_KEY'")
+        admin_key_row = cursor.fetchone()
+        
+        # Get ADMIN_PASS
+        cursor.execute("SELECT value FROM env_variables WHERE key = 'ADMIN_PASS'")
+        admin_pass_row = cursor.fetchone()
+        
+        if admin_key_row and admin_pass_row:
+            ADMIN_KEY = admin_key_row[0]
+            ADMIN_PASS = admin_pass_row[0]
+            logger.info("Admin credentials loaded from database")
+    except Exception as e:
+        logger.error(f"Error loading admin credentials: {e}")
+    finally:
+        cursor.close()
+        return_connection(connection)
+        
+# Function to generate AI insights for the report
+def generate_ai_insights(start_date, end_date, total_visits, total_requests, document_types_data, status_data):
+    try:
+        # Format the data for the AI
+        document_types_summary = ", ".join([f"{doc['document_type']}: {doc['total_requests']}" for doc in document_types_data])
+        status_summary = ", ".join([f"{status['status']}: {status['count']}" for status in status_data])
+        
+        # Create prompt for the AI
+        prompt = f"""
+        As a data analyst for Barangay Amungan, analyze this data from {start_date} to {end_date}:
+        
+        Total website visits: {total_visits}
+        Total document requests: {total_requests}
+        
+        Document requests by type:
+        {document_types_summary}
+        
+        Document status:
+        {status_summary}
+        
+        Provide 3-5 key insights about this data, including trends, patterns, and recommendations for the barangay.
+        Keep your analysis concise and focused on actionable insights.
+        """
+        
+        # Generate AI response
+        response = model.generate_content(prompt)
+        
+        # Format the response with HTML
+        insights_html = response.text.replace("\n", "<br>")
+        
+        return insights_html
+    except Exception as e:
+        logger.error(f"Error generating AI insights: {e}")
+        return "<p>Unable to generate AI insights for this report.</p>"
+
 # Route for the index page (UI interface)
 @app.route('/')
 def index():
@@ -214,7 +318,14 @@ def index():
 # Route to handle API calls and process user queries
 @app.route('/get_response', methods=['POST'])
 def get_response():
-    user_prompt = request.json.get('prompt', '')
+    data = request.json
+    user_prompt = data.get('prompt', '')
+    is_direct_document_request = data.get('isDirectDocumentRequest', False)
+    contains_document_type = data.get('containsDocumentType', False)
+    contains_document_word = data.get('containsDocumentWord', False)
+    contains_interrogative = data.get('containsInterrogative', False)
+    starts_with_interrogative = data.get('startsWithInterrogative', False)
+    requested_doc_type = data.get('requestedDocType')
     
     if not user_prompt:
         return jsonify({"error": "Prompt is required"}), 400
@@ -308,40 +419,44 @@ def get_response():
                     log_conversation(user_prompt, response_text)
                     return jsonify({"response": response_text})
         
-        # Check if this is a document request or inquiry
-        is_document_related = any(word in user_prompt_lower for word in ['document', 'clearance', 'residency', 'indigency', 'request', 'requirements'])
-        
-        if is_document_related:
-            # Determine which document type was requested
-            requested_document = None
-            for doc_type in AVAILABLE_DOCUMENTS:
-                if doc_type in user_prompt_lower:
-                    requested_document = doc_type
-                    break
+        # Check if this is a general document inquiry without specifying a type
+        if contains_document_word and not contains_document_type:
+            # For general document inquiries, suggest all document types
+            context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
+            Always provide helpful and informative responses. Format your response in a clear and professional manner.
+            If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
+If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
+            context += f"\nUser: {user_prompt}\nBAAC: "
+
+            # Using the older API style but without response_mime_type
+            response = model.generate_content(context)
             
-            # If no specific document was mentioned, provide general document info
-            if requested_document is None:
-                response_text = """
-                <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                    <p>Greetings! I can assist you with requesting the following documents from Barangay Amungan:</p>
-                    
-                    <div class="available-documents" style="margin: 15px 0; padding: 15px; background-color: #f8f9fa; border-left: 3px solid #e53935;">
-                        <p><strong>Available Document Types:</strong></p>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            <li><strong>Barangay Clearance</strong></li>
-                            <li><strong>Barangay Residency</strong></li>
-                            <li><strong>Barangay Indigency</strong></li>
-                        </ul>
-                        <p style="margin-top: 10px; font-style: italic; color: #666;">Note: Only these three document types can be requested through this system.</p>
-                    </div>
-                    
-                    <p>Please let me know which document you would like to request, and I'll guide you through the specific requirements.</p>
-                    <p>If you already have a reference number and want to check the status of your request, please provide your reference number (e.g., REF-123).</p>
-                </div>
-                """
-                log_document_request("General Document Inquiry")
-                return jsonify({"response": response_text})
-            else:
+            response_text = f"""
+            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                <p>{response.text}</p>
+            </div>
+            """
+
+            # Log the conversation
+            log_conversation(user_prompt, response_text)
+            
+            # Return the AI response along with a suggestion for all document types
+            return jsonify({
+                "response": response_text,
+                "suggestAllDocuments": True
+            })
+        
+        # Check if this is a direct document request or if a specific document type was mentioned
+        # But make sure it's not an interrogative question
+        if is_direct_document_request and not starts_with_interrogative:
+            # Use the requested document type from the frontend if available
+            requested_document = requested_doc_type
+            
+            # If not available, try to detect it from the prompt
+            if not requested_document:
+                requested_document = detect_document_type(user_prompt)
+            
+            if requested_document:
                 # Return document type to trigger form display on frontend
                 document_title = requested_document.title()
                 log_document_request(document_title)
@@ -358,27 +473,50 @@ def get_response():
                     "showForm": True,
                     "formType": requested_document
                 })
-        else:
-            # Generate response for non-document queries using the older API style
-            context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
-            Always provide helpful and informative responses. Format your response in a clear and professional manner.
-            If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
-            If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
-            context += f"\nUser: {user_prompt}\nBAAC: "
+        
+        # For interrogative queries or general document inquiries, use the AI model
+        context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
+        Always provide helpful and informative responses. Format your response in a clear and professional manner.
+        If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
+        If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
+        context += f"\nUser: {user_prompt}\nBAAC: "
 
-            # Using the older API style but without response_mime_type
-            response = model.generate_content(context)
+        # Using the older API style but without response_mime_type
+        response = model.generate_content(context)
+        
+        response_text = f"""
+        <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+            <p>{response.text}</p>
+        </div>
+        """
+
+        # Check if we should suggest a form based on the AI response and user query
+        result = {
+            "response": response_text
+        }
+        
+        # If the query contains a document type but wasn't handled as a direct request,
+        # and the AI response mentions documents, suggest a form
+        if contains_document_type and not is_direct_document_request:
+            # Try to detect which document was mentioned
+            doc_type = requested_doc_type or detect_document_type(user_prompt)
             
-            response_text = f"""
-            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                <p>{response.text}</p>
-            </div>
-            """
+            if doc_type:
+                # Check if the AI response mentions documents or the specific document type
+                response_lower = response.text.lower()
+                if (doc_type in response_lower or 
+                    "document" in response_lower or 
+                    "clearance" in response_lower or 
+                    "indigency" in response_lower or 
+                    "residency" in response_lower):
+                    
+                    result["suggestForm"] = True
+                    result["formType"] = doc_type
 
         # Log the conversation
         log_conversation(user_prompt, response_text)
 
-        return jsonify({"response": response_text})
+        return jsonify(result)
     
     except Exception as e:
         logger.error(f"Error in get_response: {str(e)}")
@@ -475,7 +613,10 @@ def submit_document():
 def admin():
     if not session.get('admin_authenticated'):
         return redirect(url_for('index'))
-    return render_template('admin.html')
+    
+    # Pass current date and date 7 days ago for the date range picker
+    now = datetime.now()
+    return render_template('admin.html', now=now, timedelta=timedelta)
 
 # Route to get document requests for admin dashboard
 @app.route('/admin/document_requests')
@@ -694,6 +835,188 @@ def logout():
     session.pop('admin_authenticated', None)
     return redirect(url_for('index'))
 
+# Route to update admin credentials
+@app.route('/admin/update_credentials', methods=['POST'])
+def update_admin_credentials():
+    # Add the global declaration at the beginning of the function
+    global ADMIN_KEY, ADMIN_PASS
+    
+    if not session.get('admin_authenticated'):
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    data = request.json
+    current_key = data.get('currentKey')
+    current_pass = data.get('currentPass')
+    new_key = data.get('newKey')
+    new_pass = data.get('newPass')
+    
+    # Verify current credentials
+    if current_key != ADMIN_KEY or current_pass != ADMIN_PASS:
+        return jsonify({"error": "Current credentials are incorrect"}), 400
+    
+    # Update environment variables in the database
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+        
+    try:
+        cursor = connection.cursor()
+        
+        # Check if env_variables table exists, create if not
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS env_variables (
+            key VARCHAR(255) PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+        
+        # Update ADMIN_KEY
+        cursor.execute("""
+        INSERT INTO env_variables (key, value)
+        VALUES ('ADMIN_KEY', %s)
+        ON CONFLICT (key) 
+        DO UPDATE SET value = %s
+        """, (new_key, new_key))
+        
+        # Update ADMIN_PASS
+        cursor.execute("""
+        INSERT INTO env_variables (key, value)
+        VALUES ('ADMIN_PASS', %s)
+        ON CONFLICT (key) 
+        DO UPDATE SET value = %s
+        """, (new_pass, new_pass))
+        
+        connection.commit()
+        
+        # Update global variables
+        ADMIN_KEY = new_key
+        ADMIN_PASS = new_pass
+        
+        return jsonify({"success": True, "message": "Admin credentials updated successfully"})
+    except Exception as e:
+        logger.error(f"Error updating admin credentials: {e}")
+        connection.rollback()
+        return jsonify({"error": "Failed to update admin credentials"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to generate custom date range report
+@app.route('/admin/custom_report', methods=['POST'])
+def custom_report():
+    if not session.get('admin_authenticated'):
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    data = request.json
+    start_date = data.get('startDate')
+    end_date = data.get('endDate')
+    
+    if not start_date or not end_date:
+        return jsonify({"error": "Start date and end date are required"}), 400
+        
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+        
+    try:
+        cursor = connection.cursor()
+        
+        # Get website visits for the date range
+        cursor.execute("""
+        SELECT visit_date, visit_count 
+        FROM website_visits 
+        WHERE visit_date BETWEEN %s AND %s
+        ORDER BY visit_date
+        """, (start_date, end_date))
+        
+        visits_data = []
+        total_visits = 0
+        for row in cursor.fetchall():
+            visit_date = row[0].strftime('%Y-%m-%d')
+            visit_count = row[1]
+            total_visits += visit_count
+            visits_data.append({"visit_date": visit_date, "visit_count": visit_count})
+        
+        # Get document requests by type for the date range
+        cursor.execute("""
+        SELECT document_type, SUM(request_count) as total_requests 
+        FROM document_requests 
+        WHERE request_date BETWEEN %s AND %s
+        GROUP BY document_type
+        ORDER BY total_requests DESC
+        """, (start_date, end_date))
+        
+        document_types_data = []
+        total_requests = 0
+        for row in cursor.fetchall():
+            document_type = row[0]
+            request_count = row[1]
+            total_requests += request_count
+            document_types_data.append({"document_type": document_type, "total_requests": request_count})
+        
+        # Get document status counts for the date range
+        cursor.execute("""
+        SELECT status, COUNT(*) as count
+        FROM document_submissions
+        WHERE submission_date::date BETWEEN %s AND %s
+        GROUP BY status
+        ORDER BY count DESC
+        """, (start_date, end_date))
+        
+        status_data = []
+        total_documents = 0
+        for row in cursor.fetchall():
+            status = row[0]
+            count = row[1]
+            total_documents += count
+            status_data.append({"status": status, "count": count})
+        
+        # Get top user queries for the date range
+        cursor.execute("""
+        SELECT user_input as query, COUNT(*) as count
+        FROM conversation_logs
+        WHERE timestamp::date BETWEEN %s AND %s
+        GROUP BY user_input
+        ORDER BY count DESC
+        LIMIT 10
+        """, (start_date, end_date))
+        
+        top_queries = []
+        for row in cursor.fetchall():
+            query = row[0]
+            count = row[1]
+            # Skip admin login attempts and very short queries
+            if len(query) > 5 and ADMIN_KEY not in query and ADMIN_PASS not in query:
+                top_queries.append({"query": query, "count": count})
+        
+        # Generate AI insights based on the data
+        ai_insights = generate_ai_insights(
+            start_date, 
+            end_date, 
+            total_visits, 
+            total_requests, 
+            document_types_data, 
+            status_data
+        )
+        
+        return jsonify({
+            "success": True,
+            "totalVisits": total_visits,
+            "totalRequests": total_requests,
+            "totalDocuments": total_documents,
+            "visitsData": visits_data,
+            "documentTypesData": document_types_data,
+            "statusData": status_data,
+            "topQueries": top_queries,
+            "aiInsights": ai_insights
+        })
+    except Exception as e:
+        logger.error(f"Error generating custom report: {e}")
+        return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
 # Error handlers
 @app.errorhandler(404)
 def page_not_found(e):
@@ -768,6 +1091,10 @@ def db_diagnostic():
             cursor.close()
         if connection:
             return_connection(connection)
+
+# Call this function after initializing the database connection
+# Add this line after creating the connection_pool
+load_admin_credentials()
 
 # Use PORT environment variable provided by Render
 port = int(os.getenv("PORT", 8000))
