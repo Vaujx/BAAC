@@ -4,23 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BAAC AI - Barangay Amungan Assistant Chatbot</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/icon.png') }}" type="image/jpeg">
+    <link rel="icon" href="{{ url_for('static', filename='/images/logo.png') }}" type="image/jpeg">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="terms-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Terms and Conditions</h2>
+        </div>
+        <div class="modal-body">
+            <h3>Welcome to Barangay Amungan Assistant Chatbot (BAAC)</h3>
+            <p>Please read these terms and conditions carefully before using our chatbot service.</p>
+            
+            <h4>1. Acceptance of Terms</h4>
+            <p>By accessing and using this chatbot, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.</p>
+            
+            <h4>2. Service Description</h4>
+            <p>BAAC is an AI-powered assistant designed to provide information about Barangay Amungan and assist with document requests. The chatbot provides information based on the data it has been trained on.</p>
+            
+            <h4>3. User Responsibilities</h4>
+            <p>Users are responsible for the accuracy of information provided when requesting documents. False information may result in rejection of document requests.</p>
+            
+            <h4>4. Privacy Policy</h4>
+            <p>We collect and store conversation data to improve our services. Personal information provided for document requests is used solely for processing those requests and is handled in accordance with data privacy laws.</p>
+            
+            <h4>5. Limitations</h4>
+            <p>While we strive to provide accurate information, BAAC may not always provide complete or up-to-date information. For critical matters, please verify with the Barangay Amungan office directly.</p>
+            
+            <h4>6. Document Requests</h4>
+            <p>Document requests made through this chatbot are subject to verification and approval by Barangay Amungan officials. Submission of a request does not guarantee approval.</p>
+            
+            <h4>7. Changes to Terms</h4>
+            <p>We reserve the right to modify these terms at any time. Continued use of the chatbot after changes constitutes acceptance of the modified terms.</p>
+        </div>
+        <div class="modal-footer">
+            <button id="agree-button" class="agree-button">I Agree</button>
+        </div>
+    </div>
+</div>
  <header class="main-header">
     <div class="logo">
-        <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <pattern id="logoPattern" patternUnits="userSpaceOnUse" width="100" height="100">
-                    <image href="images/icon.png" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" type="image/png"/>
-                </pattern>
-            </defs>
-            <circle cx="50" cy="50" r="45" fill="url(#logoPattern)" stroke="white" stroke-width="10"/>
-        </svg>
+  <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="logoPattern" patternUnits="userSpaceOnUse" width="100" height="100">
+        <image href="static/images/logo.png" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" />
+      </pattern>
+    </defs>
+    <circle cx="50" cy="50" r="45" fill="url(#logoPattern)" stroke="white" stroke-width="10" />
+  </svg>
+  <h1>Brgy. Amungan Assistant Chatbot AI</h1>
     </div>
-        <h1>Brgy. Amungan Assistant Chatbot</h1>
+        
     </header>
 
     <div class="container">
@@ -102,5 +138,65 @@
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('terms-modal');
+        const agreeButton = document.getElementById('agree-button');
+        
+        // Check if user has already agreed to terms
+        const hasAgreed = sessionStorage.getItem('termsAgreed');
+        
+        if (!hasAgreed) {
+            // Show the modal if user hasn't agreed
+            modal.style.display = 'block';
+            
+            // Disable scrolling on the body when modal is open
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // When user clicks agree
+        agreeButton.addEventListener('click', function() {
+            // Store that user has agreed
+            sessionStorage.setItem('termsAgreed', 'true');
+            
+            // Hide the modal
+            modal.style.display = 'none';
+            
+            // Re-enable scrolling
+            document.body.style.overflow = 'auto';
+        });
+    });
+    function scrollToBottom() {
+            const chatMessages = document.querySelector('.chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+        
+        // Create a MutationObserver to watch for changes in the chat messages container
+        const chatMessagesContainer = document.querySelector('.chat-messages');
+        if (chatMessagesContainer) {
+            const observer = new MutationObserver(function(mutations) {
+                scrollToBottom();
+            });
+            
+            // Start observing the chat messages container for added nodes
+            observer.observe(chatMessagesContainer, { 
+                childList: true,
+                subtree: true 
+            });
+        }
+        
+      
+        const originalSendMessage = window.sendMessage || function() {};
+        window.sendMessage = function(message) {
+            const result = originalSendMessage.apply(this, arguments);
+            
+            // After the response is added to the chat, scroll to bottom
+            setTimeout(scrollToBottom, 100); // Small delay to ensure content is rendered
+            
+            return result;
+        };
+</script>
 </html>
 
