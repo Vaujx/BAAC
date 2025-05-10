@@ -8,6 +8,7 @@ import psycopg2.extras
 from datetime import datetime, timedelta
 import logging
 import re
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -27,6 +28,8 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))  # Use environment variable if available
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session expires after 1 hour
 
 # Load the GEMINI_API_KEY from environment variables
 api_key = os.getenv("GEMINI_API_KEY")
@@ -61,6 +64,140 @@ ADMIN_PASS = os.getenv("ADMIN_PASS", "EGG")
 
 # Database URL - get from environment or use default for development
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://root:Ep7Ql5c4D25GlHeIhpnVpwjEEzfJBgnj@dpg-d08ercngi27c738hbdog-a.oregon-postgres.render.com/baacdb")
+
+# Hardcoded Barangay Officials Information
+BARANGAY_OFFICIALS_INFO = """
+Barangay Amungan Officials:
+
+Punong Barangay (also called Captain, Kapitan, Cap, or Kap): Richard N. Redondo
+
+Barangay Kagawad (Councilors):
+- Joseph D. Flauta
+- Walter L. Olipane
+- Richard D. Arquero
+- Arnold R. Lonzanida
+- Jesieline C. Sibug
+- Darius S. Susa Sr.
+- Russel S. Aramay
+
+Barangay Secretary: Darrel Castrence
+Barangay Treasurer: Rodalyn E. Gutierrez
+
+Sangguniang Kabataan (SK) Officials (in hierarchical order):
+- Carl Eric B. Rico (SK Chairperson)
+- Arnel Jake E. Mercado
+- Danica D. Barried
+- Marjurine R. Dagsaan
+- Grace E. Ednalaga
+- Christian Lloyd R. Susa
+- Criezel Mae P. Santos
+- Gabriel Vonz M. Macalinao
+- Patricia Leigh M. Rebultan
+- Ellysa Famisan
+
+Purok Presidents (Barangay Amungan has a total of 14 puroks):
+- Purok 1: Felimon V. Aramay Jr.
+- Purok 2: Joselyn Alarma
+- Purok 3: Alvin Abadam
+- Purok 4: Moises S. Castrence
+- Purok 5: Carlos B. Dagun
+- Purok 6: Lelyrose Arcino
+- Purok 7: Belen A. Famisan
+- Purok 8: Marissa Cristobal
+- Purok 9: Jean Abad
+- Purok 10: Gilbert Baluyot
+- Purok 11: Jerry P. Cristobal
+- Purok 12: Henry Adona
+- Purok 13: Nelsa T. Aramay
+- Purok 14: Jayson Mora
+
+Population Information of Barangay Amungan by Age Range:
+
+Under 5 Years Old
+Male: 443
+Female: 412
+Total: 855
+
+5 - 9 Years Old
+Male: 481
+Female: 488
+Total: 969
+
+10 - 14 Years Old
+Male: 571
+Female: 533
+Total: 1,104
+
+15 - 19 Years Old
+Male: 581
+Female: 563
+Total: 1,144
+
+20 - 24 Years Old
+Male: 629
+Female: 561
+Total: 1,190
+
+25 - 29 Years Old
+Male: 591
+Female: 607
+Total: 1,198
+
+30 - 34 Years Old
+Male: 517
+Female: 510
+Total: 1,027
+
+35 - 39 Years Old
+Male: 490
+Female: 438
+Total: 928
+
+40 - 44 Years Old
+Male: 401
+Female: 422
+Total: 823
+
+45 - 49 Years Old
+Male: 345
+Female: 393
+Total: 738
+
+50 - 54 Years Old
+Male: 285
+Female: 294
+Total: 579
+
+55 - 59 Years Old
+Male: 268
+Female: 300
+Total: 568
+
+60 - 64 Years Old
+Male: 257
+Female: 230
+Total: 487
+
+65 - 69 Years Old
+Male: 201
+Female: 192
+Total: 393
+
+70 - 74 Years Old
+Male: 124
+Female: 152
+Total: 276
+
+75 - 79 Years Old
+Male: 63
+Female: 88
+Total: 151
+
+80 Years Old and Over
+Male: 43
+Female: 97
+Total: 140
+"""
 
 # PostgreSQL connection pool
 try:
@@ -209,30 +346,118 @@ def get_document_status(reference_id):
 # Helper function to detect document type in a query
 def detect_document_type(query):
     query_lower = query.lower()
-    
+
     # Check for barangay clearance
     if "clearance" in query_lower:
         return "barangay clearance"
-    
+
     # Check for barangay indigency (including common misspellings)
     if any(word in query_lower for word in ["indigency", "indengency", "indengecy", "indegency"]):
         return "barangay indigency"
-    
+
     # Check for barangay residency
     if "residency" in query_lower:
         return "barangay residency"
-    
+
     # If no specific document type is found, check for general document mentions
     for doc_type in AVAILABLE_DOCUMENTS:
         if doc_type in query_lower:
             return doc_type
-    
+
     return None
+
+# Function to check if a query is about barangay officials
+def is_about_officials(query):
+    query_lower = query.lower()
+
+    # Check for general terms about officials
+    official_terms = [
+        "official", "officials", "barangay official", "barangay officials",
+        "kagawad", "councilor", "council", "secretary", "treasurer",
+        "captain", "kapitan", "chairman", "punong", "kap ", "cap ",
+        "sk", "sangguniang kabataan", "youth council", "youth",
+        "purok", "purok president", "purok leader", "president"
+    ]
+
+    # Check for specific names of officials
+    official_names = [
+        "redondo", "flauta", "olipane", "arquero", "lonzanida", 
+        "sibug", "susa", "aramay", "castrence", "gutierrez",
+        "rico", "mercado", "barried", "dagsaan", "ednalaga",
+        "santos", "macalinao", "rebultan", "famisan",
+        "alarma", "abadam", "dagun", "arcino", "abad",
+        "baluyot", "cristobal", "adona", "mora"
+    ]
+
+    # Check if any term is in the query
+    for term in official_terms:
+        if term in query_lower:
+            return True
+
+    # Check if any name is in the query
+    for name in official_names:
+        if name in query_lower:
+            return True
+
+    return False
+
+# Function to check if a query is about population information
+def is_about_population(query):
+    query_lower = query.lower()
+
+    # Check for population-related terms
+    population_terms = [
+        "population", "demographics", "residents", "people", "citizens",
+        "age", "gender", "male", "female", "men", "women", "boys", "girls",
+        "statistics", "census", "how many people", "total population"
+    ]
+
+    # Check if any term is in the query
+    for term in population_terms:
+        if term in query_lower:
+            return True
+
+    return False
+
+# Function to format response with proper HTML styling
+def format_response_html(text):
+    # Replace markdown bullet points (* Item) with HTML list items
+    if '*' in text:
+        # Check if the text contains bullet points
+        lines = text.split('\n')
+        in_list = False
+        formatted_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('*'):
+                if not in_list:
+                    # Start a new list
+                    formatted_lines.append('<ul class="list-disc pl-5 space-y-2">')
+                    in_list = True
+                # Convert the bullet point to an HTML list item with styling
+                item_text = line[1:].strip()
+                formatted_lines.append(f'<li class="text-base">{item_text}</li>')
+            else:
+                if in_list:
+                    # Close the list
+                    formatted_lines.append('</ul>')
+                    in_list = False
+                formatted_lines.append(line)
+        
+        if in_list:
+            # Close the list if it's still open
+            formatted_lines.append('</ul>')
+        
+        return '\n'.join(formatted_lines)
+
+    # If no bullet points, return the original text
+    return text
 
 # Load admin credentials from database
 def load_admin_credentials():
     global ADMIN_KEY, ADMIN_PASS
-    
+
     connection = get_connection()
     if connection is None:
         logger.warning("Could not load admin credentials from database, using defaults")
@@ -309,11 +534,56 @@ def generate_ai_insights(start_date, end_date, total_visits, total_requests, doc
         logger.error(f"Error generating AI insights: {e}")
         return "<p>Unable to generate AI insights for this report.</p>"
 
+# Function to manage conversation history
+def manage_conversation_history(user_input, ai_response):
+    # Initialize conversation history if it doesn't exist
+    if 'conversation_history' not in session:
+        session['conversation_history'] = []
+    
+    # Add the new exchange to the history
+    session['conversation_history'].append({
+        'user': user_input,
+        'ai': ai_response
+    })
+    
+    # Limit the history to the last 10 exchanges to avoid context window limits
+    if len(session['conversation_history']) > 10:
+        session['conversation_history'] = session['conversation_history'][-10:]
+    
+    # Save the session
+    session.modified = True
+
+# Function to get conversation history as a formatted string for the AI context
+def get_conversation_history_context():
+    if 'conversation_history' not in session or not session['conversation_history']:
+        return ""
+    
+    context = "\nRecent conversation history:\n"
+    for exchange in session['conversation_history']:
+        # Strip HTML tags for cleaner context
+        ai_response = re.sub(r'<.*?>', '', exchange['ai'])
+        context += f"User: {exchange['user']}\nBAAC: {ai_response}\n\n"
+    
+    return context
+
 # Route for the index page (UI interface)
 @app.route('/')
 def index():
+    # Clear conversation history on page load
+    if 'conversation_history' in session:
+        session['conversation_history'] = []
+        session.modified = True
+        
     log_website_visit()
     return render_template('index.html')
+
+# Route to clear conversation history
+@app.route('/clear_conversation', methods=['POST'])
+def clear_conversation():
+    if 'conversation_history' in session:
+        session['conversation_history'] = []
+        session.modified = True
+    return jsonify({"success": True, "message": "Conversation history cleared"})
 
 # Route to handle API calls and process user queries
 @app.route('/get_response', methods=['POST'])
@@ -326,7 +596,7 @@ def get_response():
     contains_interrogative = data.get('containsInterrogative', False)
     starts_with_interrogative = data.get('startsWithInterrogative', False)
     requested_doc_type = data.get('requestedDocType')
-    
+
     if not user_prompt:
         return jsonify({"error": "Prompt is required"}), 400
 
@@ -406,6 +676,9 @@ def get_response():
                         </div>
                         """
                     
+                    # Add to conversation history
+                    manage_conversation_history(user_prompt, response_text)
+                    
                     log_conversation(user_prompt, response_text)
                     return jsonify({"response": response_text})
                 else:
@@ -416,6 +689,10 @@ def get_response():
                         <p>If you're sure the reference number is correct, please visit the Barangay Amungan Hall for assistance.</p>
                     </div>
                     """
+                    
+                    # Add to conversation history
+                    manage_conversation_history(user_prompt, response_text)
+                    
                     log_conversation(user_prompt, response_text)
                     return jsonify({"response": response_text})
         
@@ -424,19 +701,41 @@ def get_response():
             # For general document inquiries, suggest all document types
             context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
             Always provide helpful and informative responses. Format your response in a clear and professional manner.
+            
+            IMPORTANT: Use HTML formatting for lists and structured content. For lists, use <ul> and <li> tags instead of asterisks or bullet points.
+            For example, instead of:
+            * Item 1
+            * Item 2
+            
+            Use:
+            <ul>
+            <li>Item 1</li>
+            <li>Item 2</li>
+            </ul>
+            
             If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
-If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
+            If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
+            
+            # Add conversation history to the context
+            context += get_conversation_history_context()
+            
             context += f"\nUser: {user_prompt}\nBAAC: "
 
             # Using the older API style but without response_mime_type
             response = model.generate_content(context)
             
+            # Format the response with HTML
+            formatted_response = format_response_html(response.text)
+            
             response_text = f"""
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                <p>{response.text}</p>
+                {formatted_response}
             </div>
             """
 
+            # Add to conversation history
+            manage_conversation_history(user_prompt, response_text)
+            
             # Log the conversation
             log_conversation(user_prompt, response_text)
             
@@ -468,27 +767,112 @@ If users ask about checking document status, ask them to provide their reference
                 </div>
                 """
                 
+                # Add to conversation history
+                manage_conversation_history(user_prompt, response_text)
+                
                 return jsonify({
                     "response": response_text,
                     "showForm": True,
                     "formType": requested_document
                 })
         
+        # Check if query is about barangay officials or population
+        if is_about_officials(user_prompt) or is_about_population(user_prompt):
+            # Create a context with the correct officials and population information
+            context = f"""You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
+            Always provide helpful and informative responses. Format your response in a clear and professional manner.
+            
+            IMPORTANT: Use HTML formatting for lists and structured content. For lists, use <ul> and <li> tags instead of asterisks or bullet points.
+            For example, instead of:
+            * Item 1
+            * Item 2
+            
+            Use:
+            <ul>
+            <li>Item 1</li>
+            <li>Item 2</li>
+            </ul>
+            
+            Here is the accurate information about Barangay Amungan that you should use in your response:
+            {BARANGAY_OFFICIALS_INFO}
+            
+            If the user is asking about the Punong Barangay, remember they might refer to this position as Captain, Kapitan, Cap, or Kap.
+            If the user is asking about the Sangguniang Kabataan (SK), provide information about the SK officials listed above.
+            If the user is asking about Purok Presidents or Purok Leaders, provide information about the specific purok they're asking about or list all 14 purok presidents.
+            If the user is asking about population or demographics, provide the relevant information from the population data.
+            """
+            
+            # Add conversation history to the context
+            context += get_conversation_history_context()
+            
+            context += f"\nUser: {user_prompt}\nBAAC:"
+            
+            # Generate response using the AI model with the officials information
+            response = model.generate_content(context)
+            
+            # Format the response with HTML
+            formatted_response = format_response_html(response.text)
+            
+            response_text = f"""
+            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                {formatted_response}
+            </div>
+            """
+            
+            # Add to conversation history
+            manage_conversation_history(user_prompt, response_text)
+            
+            # Log the conversation
+            log_conversation(user_prompt, response_text)
+            
+            return jsonify({"response": response_text})
+        
         # For interrogative queries or general document inquiries, use the AI model
         context = """You are BAAC (Barangay Amungan Assistant Chatbot), an assistant chatbot for Barangay Amungan, Iba, Zambales.
         Always provide helpful and informative responses. Format your response in a clear and professional manner.
+        You are a large language model trained by Students from President Ramon Magsaysay State University (PRMSU)
+        You are a pre existing model that was trained by students as BAAC (Barangay Amungan Assistant Chatbot) to be able to assist residents and staff of the barangay
+        You are a pre existing model from hugging face
+        IMPORTANT: Use HTML formatting for lists and structured content. For lists, use <ul> and <li> tags instead of asterisks or bullet points.
+        For example, instead of:
+        * Item 1
+        * Item 2
+        
+        Use:
+        <ul>
+        <li>Item 1</li>
+        <li>Item 2</li>
+        </ul>
+        
         If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
         If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
+        
+        # Add barangay officials and population information to the context
+        context += f"""
+        
+        Here is the accurate information about Barangay Amungan that you should use if the user asks about officials, puroks, or population:
+        {BARANGAY_OFFICIALS_INFO}
+        """
+        
+        # Add conversation history to the context
+        context += get_conversation_history_context()
+        
         context += f"\nUser: {user_prompt}\nBAAC: "
 
         # Using the older API style but without response_mime_type
         response = model.generate_content(context)
         
+        # Format the response with HTML
+        formatted_response = format_response_html(response.text)
+        
         response_text = f"""
         <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-            <p>{response.text}</p>
+            {formatted_response}
         </div>
         """
+
+        # Add to conversation history
+        manage_conversation_history(user_prompt, response_text)
 
         # Check if we should suggest a form based on the AI response and user query
         result = {
@@ -517,7 +901,7 @@ If users ask about checking document status, ask them to provide their reference
         log_conversation(user_prompt, response_text)
 
         return jsonify(result)
-    
+
     except Exception as e:
         logger.error(f"Error in get_response: {str(e)}")
         return jsonify({"error": f"An error occurred while processing the request: {str(e)}"}), 500
@@ -587,6 +971,10 @@ def submit_document():
             </div>
             """
             
+            # Add to conversation history
+            user_input = f"I submitted a request for {document_type}"
+            manage_conversation_history(user_input, response_text)
+            
             # Log the conversation
             log_conversation(f"Document submission: {document_type}", response_text)
             
@@ -613,7 +1001,7 @@ def submit_document():
 def admin():
     if not session.get('admin_authenticated'):
         return redirect(url_for('index'))
-    
+
     # Pass current date and date 7 days ago for the date range picker
     now = datetime.now()
     return render_template('admin.html', now=now, timedelta=timedelta)
@@ -679,7 +1067,7 @@ def update_document_status():
     document_id = data.get('id')
     status = data.get('status')
     notes = data.get('notes', '')
-    
+
     if not document_id or not status:
         return jsonify({"error": "Document ID and status are required"}), 400
         
@@ -840,7 +1228,7 @@ def logout():
 def update_admin_credentials():
     # Add the global declaration at the beginning of the function
     global ADMIN_KEY, ADMIN_PASS
-    
+
     if not session.get('admin_authenticated'):
         return jsonify({"error": "Unauthorized"}), 401
         
@@ -849,11 +1237,11 @@ def update_admin_credentials():
     current_pass = data.get('currentPass')
     new_key = data.get('newKey')
     new_pass = data.get('newPass')
-    
+
     # Verify current credentials
     if current_key != ADMIN_KEY or current_pass != ADMIN_PASS:
         return jsonify({"error": "Current credentials are incorrect"}), 400
-    
+
     # Update environment variables in the database
     connection = get_connection()
     if connection is None:
@@ -910,7 +1298,7 @@ def custom_report():
     data = request.json
     start_date = data.get('startDate')
     end_date = data.get('endDate')
-    
+
     if not start_date or not end_date:
         return jsonify({"error": "Start date and end date are required"}), 400
         
