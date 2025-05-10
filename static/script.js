@@ -9,6 +9,37 @@ document.addEventListener("DOMContentLoaded", () => {
   formOverlay.style.display = "none"
   document.body.appendChild(formOverlay)
 
+  // List of document types
+  const documentTypes = [
+    "barangay clearance",
+    "barangay indigency",
+    "barangay indengency",
+    "barangay indengecy",
+    "indigency",
+    "barangay residency",
+    "residency",
+    "clearance",
+  ]
+
+  // List of interrogative words (5Ws and H)
+  const interrogativeWords = [
+    "what",
+    "where",
+    "when",
+    "why",
+    "who",
+    "how",
+    "is",
+    "are",
+    "can",
+    "could",
+    "would",
+    "should",
+    "do",
+    "does",
+    "did",
+  ]
+
   function addMessage(content, isUser = false) {
     const messageDiv = document.createElement("div")
     messageDiv.classList.add("message")
@@ -37,12 +68,78 @@ document.addEventListener("DOMContentLoaded", () => {
     promptInput.value = ""
     setSubmitButtonState(false)
 
+    // Check if the prompt contains a document type (more flexible detection)
+    const containsDocumentType = documentTypes.some((docType) => prompt.toLowerCase().includes(docType))
+
+    // Check if the prompt contains the word "document" (for general document inquiries)
+    const containsDocumentWord = prompt.toLowerCase().includes("document")
+
+    // Check if the prompt contains interrogative words
+    const containsInterrogative = interrogativeWords.some((word) =>
+      prompt
+        .toLowerCase()
+        .split(/\s+/)
+        .some((w) => w === word),
+    )
+
+    // Check if the prompt starts with interrogative words or phrases
+    const startsWithInterrogative =
+      interrogativeWords.some((word) => prompt.toLowerCase().startsWith(word)) ||
+      prompt.toLowerCase().startsWith("how can") ||
+      prompt.toLowerCase().startsWith("how do") ||
+      prompt.toLowerCase().startsWith("how to") ||
+      prompt.toLowerCase().startsWith("what is") ||
+      prompt.toLowerCase().startsWith("where can") ||
+      prompt.toLowerCase().startsWith("when can")
+
+    // Determine if this is a direct document request - more lenient conditions
+    // BUT make sure it's not an interrogative question
+    const isDirectDocumentRequest =
+      containsDocumentType &&
+      !startsWithInterrogative &&
+      (prompt.toLowerCase().includes("request") ||
+        prompt.toLowerCase().includes("form") ||
+        prompt.toLowerCase().includes("get") ||
+        prompt.toLowerCase().includes("apply") ||
+        prompt.toLowerCase().includes("need") ||
+        prompt.toLowerCase().startsWith("i want") ||
+        prompt.toLowerCase().startsWith("i need") ||
+        // Also consider it a direct request if it just mentions the document without questions
+        !containsInterrogative)
+
+    // Detect which document type was requested
+    let requestedDocType = null
+    if (containsDocumentType) {
+      // Find the matching document type
+      for (const docType of documentTypes) {
+        if (prompt.toLowerCase().includes(docType)) {
+          // Map to one of the standard document types
+          if (docType.includes("clearance")) {
+            requestedDocType = "barangay clearance"
+          } else if (docType.includes("indeng") || docType.includes("indige") || docType === "indigency") {
+            requestedDocType = "barangay indigency"
+          } else if (docType.includes("resid") || docType === "residency") {
+            requestedDocType = "barangay residency"
+          }
+          break
+        }
+      }
+    }
+
     fetch("/get_response", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt: prompt }),
+      body: JSON.stringify({
+        prompt: prompt,
+        isDirectDocumentRequest: isDirectDocumentRequest,
+        containsDocumentType: containsDocumentType,
+        containsDocumentWord: containsDocumentWord,
+        containsInterrogative: containsInterrogative,
+        startsWithInterrogative: startsWithInterrogative,
+        requestedDocType: requestedDocType,
+      }),
     })
       .then((response) => response.json())
       .then((data) => {
@@ -56,6 +153,16 @@ document.addEventListener("DOMContentLoaded", () => {
           if (data.showForm && data.formType) {
             showDocumentForm(data.formType)
           }
+
+          // If the AI suggests a form, add a button to show it
+          if (data.suggestForm && data.formType) {
+            addFormSuggestionButton(data.formType)
+          }
+
+          // If the AI suggests all document types
+          if (data.suggestAllDocuments) {
+            addAllDocumentsSuggestion()
+          }
         }
       })
       .catch((error) => {
@@ -65,6 +172,53 @@ document.addEventListener("DOMContentLoaded", () => {
       .finally(() => {
         setSubmitButtonState(true)
       })
+  }
+
+  // Function to suggest a specific document form
+  function addFormSuggestionButton(documentType) {
+    const suggestionDiv = document.createElement("div")
+    suggestionDiv.className = "form-suggestion"
+    suggestionDiv.innerHTML = `
+    <p><strong>Document Request Available:</strong> I can help you request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
+    <button class="form-suggestion-btn">Open Request Form</button>
+  `
+
+    const button = suggestionDiv.querySelector(".form-suggestion-btn")
+    button.addEventListener("click", () => {
+      showDocumentForm(documentType)
+      suggestionDiv.remove()
+    })
+
+    chatMessages.appendChild(suggestionDiv)
+    chatMessages.scrollTop = chatMessages.scrollHeight
+  }
+
+  // Function to suggest all three document types
+  function addAllDocumentsSuggestion() {
+    const suggestionDiv = document.createElement("div")
+    suggestionDiv.className = "all-documents-suggestion"
+    suggestionDiv.innerHTML = `
+      <p><strong>Available Document Requests:</strong> I can help you request any of the following documents:</p>
+      <div class="document-buttons">
+        <button class="document-btn" data-type="barangay clearance">Barangay Clearance</button>
+        <button class="document-btn" data-type="barangay indigency">Barangay Indigency</button>
+        <button class="document-btn" data-type="barangay residency">Barangay Residency</button>
+      </div>
+      <p class="document-help-text">Click on any document to open its request form.</p>
+    `
+
+    // Add event listeners to all buttons
+    const buttons = suggestionDiv.querySelectorAll(".document-btn")
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const docType = button.getAttribute("data-type")
+        showDocumentForm(docType)
+        suggestionDiv.remove()
+      })
+    })
+
+    chatMessages.appendChild(suggestionDiv)
+    chatMessages.scrollTop = chatMessages.scrollHeight
   }
 
   function showDocumentForm(documentType) {
@@ -211,6 +365,60 @@ document.addEventListener("DOMContentLoaded", () => {
       <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
     </div>
   `)
+
+  // Add CSS for form suggestion and all documents suggestion
+  const style = document.createElement("style")
+  style.textContent = `
+  .form-suggestion, .all-documents-suggestion {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 4px solid #e53935;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .form-suggestion p, .all-documents-suggestion p {
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  
+  .form-suggestion-btn, .document-btn {
+    background-color: #e53935;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+  
+  .form-suggestion-btn:hover, .document-btn:hover {
+    background-color: #c62828;
+  }
+
+  .document-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .document-help-text {
+    font-size: 13px;
+    color: #666;
+    font-style: italic;
+  }
+
+  @media (max-width: 600px) {
+    .document-buttons {
+      flex-direction: column;
+    }
+  }
+`
+  document.head.appendChild(style)
 
   // Team member hover effect
   const teamMembers = document.querySelectorAll(".team-member")
