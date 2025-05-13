@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Get the correct scrollable elements
+  const chatContainer = document.getElementById("chat-container")
   const chatMessages = document.getElementById("chat-messages")
   const promptInput = document.getElementById("prompt")
   const submitButton = document.getElementById("submit-btn")
@@ -40,6 +42,86 @@ document.addEventListener("DOMContentLoaded", () => {
     "did",
   ]
 
+  // Enhanced robust auto-scroll function
+  function scrollToBottom() {
+    // Log for debugging
+    console.log("Scrolling to bottom")
+    console.log("Container height:", chatContainer.clientHeight)
+    console.log("Scroll height:", chatContainer.scrollHeight)
+
+    // Force layout recalculation
+    void chatContainer.offsetHeight
+
+    // Set scroll position immediately
+    chatContainer.scrollTop = chatContainer.scrollHeight
+
+    // Use requestAnimationFrame for smoother scrolling
+    requestAnimationFrame(() => {
+      chatContainer.scrollTop = chatContainer.scrollHeight
+    })
+
+    // Also try with multiple delays for reliability
+    setTimeout(() => {
+      chatContainer.scrollTop = chatContainer.scrollHeight
+    }, 10)
+
+    setTimeout(() => {
+      chatContainer.scrollTop = chatContainer.scrollHeight
+      console.log("Final scroll position:", chatContainer.scrollTop)
+    }, 100)
+  }
+
+  // Set up auto-scrolling with MutationObserver
+  function setupAutoScroll() {
+    // Create a MutationObserver to watch for changes in the chat container
+    const observer = new MutationObserver((mutations) => {
+      scrollToBottom()
+    })
+
+    // Start observing the chat container for DOM changes
+    observer.observe(chatMessages, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+    })
+
+    // Also set up interval-based scrolling for a short period after content changes
+    let scrollInterval
+    const startScrollInterval = () => {
+      clearInterval(scrollInterval)
+      let scrollCount = 0
+      scrollInterval = setInterval(() => {
+        scrollToBottom()
+        scrollCount++
+        if (scrollCount > 5) {
+          clearInterval(scrollInterval)
+        }
+      }, 100)
+    }
+
+    // Watch for changes to trigger the interval-based scrolling
+    const contentObserver = new MutationObserver(() => {
+      startScrollInterval()
+    })
+
+    contentObserver.observe(chatMessages, {
+      childList: true,
+      subtree: true,
+    })
+
+    // Add resize observer to handle window resizing
+    const resizeObserver = new ResizeObserver(() => {
+      scrollToBottom()
+    })
+    resizeObserver.observe(chatContainer)
+
+    // Force scroll on image load to handle dynamic content height changes
+    document.querySelectorAll("img").forEach((img) => {
+      img.addEventListener("load", scrollToBottom)
+    })
+  }
+
   function addMessage(content, isUser = false) {
     const messageDiv = document.createElement("div")
     messageDiv.classList.add("message")
@@ -52,7 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     chatMessages.appendChild(messageDiv)
-    chatMessages.scrollTop = chatMessages.scrollHeight
+
+    // Force scroll after adding a message
+    scrollToBottom()
   }
 
   function setSubmitButtonState(enabled) {
@@ -149,28 +233,41 @@ document.addEventListener("DOMContentLoaded", () => {
           const result = data.response ? data.response : data.error || "No response content found."
           addMessage(result)
 
+          // Force scroll after adding AI response
+          scrollToBottom()
+
           // Check if we need to show a form
           if (data.showForm && data.formType) {
             showDocumentForm(data.formType)
+            // Force scroll after showing form
+            scrollToBottom()
           }
 
           // If the AI suggests a form, add a button to show it
           if (data.suggestForm && data.formType) {
             addFormSuggestionButton(data.formType)
+            // Force scroll after adding form suggestion
+            scrollToBottom()
           }
 
           // If the AI suggests all document types
           if (data.suggestAllDocuments) {
             addAllDocumentsSuggestion()
+            // Force scroll after adding document suggestions
+            scrollToBottom()
           }
         }
       })
       .catch((error) => {
         addMessage("Error: Unable to fetch response.")
         console.error("Error:", error)
+        // Force scroll after error message
+        scrollToBottom()
       })
       .finally(() => {
         setSubmitButtonState(true)
+        // Final force scroll
+        scrollToBottom()
       })
   }
 
@@ -187,10 +284,13 @@ document.addEventListener("DOMContentLoaded", () => {
     button.addEventListener("click", () => {
       showDocumentForm(documentType)
       suggestionDiv.remove()
+      // Force scroll after removing suggestion
+      scrollToBottom()
     })
 
     chatMessages.appendChild(suggestionDiv)
-    chatMessages.scrollTop = chatMessages.scrollHeight
+    // Force scroll after adding suggestion
+    scrollToBottom()
   }
 
   // Function to suggest all three document types
@@ -214,11 +314,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const docType = button.getAttribute("data-type")
         showDocumentForm(docType)
         suggestionDiv.remove()
+        // Force scroll after removing suggestion
+        scrollToBottom()
       })
     })
 
     chatMessages.appendChild(suggestionDiv)
-    chatMessages.scrollTop = chatMessages.scrollHeight
+    // Force scroll after adding suggestions
+    scrollToBottom()
   }
 
   function showDocumentForm(documentType) {
@@ -286,6 +389,8 @@ document.addEventListener("DOMContentLoaded", () => {
     closeBtn.textContent = "×"
     closeBtn.addEventListener("click", () => {
       formOverlay.style.display = "none"
+      // Force scroll after closing form
+      scrollToBottom()
     })
 
     // Assemble form
@@ -331,6 +436,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Show success message
             addMessage(data.response)
+            // Force scroll after success message
+            scrollToBottom()
           } else {
             alert("Error: " + (data.error || "Failed to submit form"))
           }
@@ -366,60 +473,6 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
   `)
 
-  // Add CSS for form suggestion and all documents suggestion
-  const style = document.createElement("style")
-  style.textContent = `
-  .form-suggestion, .all-documents-suggestion {
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin: 15px 0;
-    border-left: 4px solid #e53935;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-  
-  .form-suggestion p, .all-documents-suggestion p {
-    margin-bottom: 12px;
-    font-size: 15px;
-  }
-  
-  .form-suggestion-btn, .document-btn {
-    background-color: #e53935;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 10px 15px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-    transition: background-color 0.2s;
-  }
-  
-  .form-suggestion-btn:hover, .document-btn:hover {
-    background-color: #c62828;
-  }
-
-  .document-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-
-  .document-help-text {
-    font-size: 13px;
-    color: #666;
-    font-style: italic;
-  }
-
-  @media (max-width: 600px) {
-    .document-buttons {
-      flex-direction: column;
-    }
-  }
-`
-  document.head.appendChild(style)
-
   // Team member hover effect
   const teamMembers = document.querySelectorAll(".team-member")
 
@@ -432,4 +485,13 @@ document.addEventListener("DOMContentLoaded", () => {
       member.querySelector(".member-info").style.transform = "translateY(0)"
     })
   })
+
+  // Set up auto-scrolling
+  setupAutoScroll()
+
+  // Initial scroll to bottom
+  scrollToBottom()
+
+  // Force scroll on window resize to handle layout shifts
+  window.addEventListener("resize", scrollToBottom)
 })
