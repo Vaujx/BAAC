@@ -60,8 +60,10 @@
     </header>
 
     <div class="container">
-        <div class="chat-container">
-            <div id="chat-messages"></div>
+        <div class="chat-outer-container">
+            <div class="chat-container" id="chat-container">
+                <div id="chat-messages"></div>
+            </div>
         </div>
         <div class="input-area">
             <textarea id="prompt" placeholder="Ask about Barangay Amungan..."></textarea>
@@ -166,37 +168,5 @@
             document.body.style.overflow = 'auto';
         });
     });
-    function scrollToBottom() {
-            const chatMessages = document.querySelector('.chat-messages');
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        }
-        
-        // Create a MutationObserver to watch for changes in the chat messages container
-        const chatMessagesContainer = document.querySelector('.chat-messages');
-        if (chatMessagesContainer) {
-            const observer = new MutationObserver(function(mutations) {
-                scrollToBottom();
-            });
-            
-            // Start observing the chat messages container for added nodes
-            observer.observe(chatMessagesContainer, { 
-                childList: true,
-                subtree: true 
-            });
-        }
-        
-      
-        const originalSendMessage = window.sendMessage || function() {};
-        window.sendMessage = function(message) {
-            const result = originalSendMessage.apply(this, arguments);
-            
-            // After the response is added to the chat, scroll to bottom
-            setTimeout(scrollToBottom, 100); // Small delay to ensure content is rendered
-            
-            return result;
-        };
 </script>
 </html>
-
