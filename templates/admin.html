@@ -7,6 +7,7 @@
     <link rel="icon" href="{{ url_for('static', filename='/images/logo.png') }}" type="image/jpeg">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <style>
         .admin-container {
             max-width: 1200px;
@@ -348,6 +349,115 @@
             margin: 15px 0;
         }
 
+        /* Official Report Header Styles */
+        .official-report-header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px 0;
+            border-bottom: 2px solid #e53935;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .header-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e53935;
+        }
+
+        .header-text {
+            text-align: left;
+            line-height: 1.1;
+        }
+
+        .header-text .country {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .header-text .province {
+            font-size: 11px;
+            font-weight: 500;
+            color: #666;
+            margin: 1px 0;
+        }
+
+        .header-text .barangay {
+            font-size: 14px;
+            font-weight: 700;
+            color: #e53935;
+            margin: 1px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .report-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin: 10px 0 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .report-subtitle {
+            font-size: 12px;
+            color: #666;
+            margin: 2px 0;
+        }
+
+        /* Attestation Section */
+        .attestation-section {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .attestation-box {
+            text-align: center;
+            min-width: 200px;
+        }
+
+        .attestation-text {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 25px;
+            font-style: italic;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #333;
+            width: 180px;
+            margin: 0 auto 6px auto;
+            height: 1px;
+        }
+
+        .attestator-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .attestator-title {
+            font-size: 10px;
+            color: #666;
+            margin: 1px 0 0 0;
+            font-style: italic;
+        }
+
         /* Print styles */
         @media print {
             /* Hide everything except the report */
@@ -368,7 +478,8 @@
                 top: 0;
                 width: 100%;
                 background-color: white;
-                padding: 20px;
+                padding: 10px;
+                margin: 0;
             }
             
             /* Hide UI elements that shouldn't be printed */
@@ -382,13 +493,68 @@
                 display: none !important;
             }
             
-            /* Ensure graphs print properly */
+            /* Compact header for print */
+            .official-report-header {
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+                padding: 10px 0;
+                border-bottom: 2px solid #e53935;
+            }
+
+            .header-content {
+                gap: 12px;
+                margin-bottom: 8px;
+            }
+
+            .header-logo {
+                width: 50px;
+                height: 50px;
+                border: 2px solid #e53935;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .header-text .country {
+                font-size: 11px;
+            }
+
+            .header-text .province {
+                font-size: 10px;
+            }
+
+            .header-text .barangay {
+                font-size: 13px;
+            }
+
+            .report-title {
+                font-size: 16px;
+                margin: 8px 0 4px 0;
+            }
+
+            .report-subtitle {
+                font-size: 11px;
+                margin: 1px 0;
+            }
+            
+            /* Ensure content flows properly */
+            .report-section {
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+            }
+
+            .report-section h4 {
+                font-size: 14px;
+                margin-bottom: 8px;
+                page-break-after: avoid;
+            }
+            
+            /* Ensure graphs print properly but more compact */
             .report-graph {
                 break-inside: avoid;
                 page-break-inside: avoid;
-                height: 300px !important;
+                height: 250px !important;
                 width: 100% !important;
-                margin: 20px 0;
+                margin: 10px 0;
                 display: block !important;
             }
             
@@ -404,6 +570,12 @@
             .report-table {
                 page-break-inside: auto;
                 width: 100%;
+                font-size: 11px;
+            }
+            
+            .report-table th, 
+            .report-table td {
+                padding: 4px 6px;
             }
             
             .report-table tr {
@@ -411,25 +583,95 @@
                 page-break-after: auto;
             }
             
-            .report-section {
-                page-break-inside: avoid;
-                margin-bottom: 30px;
-            }
-            
-            /* Add page breaks before sections */
-            .report-section {
-                page-break-before: auto;
-            }
-            
             /* Ensure text is black for better printing */
             body {
                 color: black;
+                font-size: 12px;
+                line-height: 1.3;
             }
             
             /* Ensure background colors print */
             .report-section, .ai-insights, .report-table th {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+            }
+
+            /* Compact AI insights for print */
+            .ai-insights {
+                padding: 10px;
+                margin: 10px 0;
+                font-size: 11px;
+                border-left: 3px solid #e53935;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Attestation section for print */
+            .attestation-section {
+                page-break-inside: avoid;
+                margin-top: 20px;
+                padding-top: 10px;
+            }
+
+            .attestation-box {
+                min-width: 180px;
+            }
+
+            .attestation-text {
+                font-size: 10px;
+                margin-bottom: 20px;
+            }
+
+            .signature-line {
+                width: 160px;
+                margin-bottom: 5px;
+            }
+
+            .attestator-name {
+                font-size: 11px;
+            }
+
+            .attestator-title {
+                font-size: 9px;
+            }
+
+            /* Remove excessive margins and padding */
+            * {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #customReportContainer {
+                margin: 0 !important;
+                padding: 10px !important;
+            }
+
+            .official-report-header {
+                margin: 0 0 15px 0 !important;
+                padding: 10px 0 !important;
+            }
+
+            .report-section {
+                margin: 0 0 15px 0 !important;
+                padding: 0 !important;
+            }
+
+            .report-table {
+                margin: 0 0 10px 0 !important;
+            }
+
+            .report-graph {
+                margin: 10px 0 !important;
+            }
+
+            .ai-insights {
+                margin: 10px 0 !important;
+                padding: 10px !important;
+            }
+
+            .attestation-section {
+                margin: 20px 0 0 0 !important;
+                padding: 10px 0 0 0 !important;
             }
         }
     </style>
@@ -646,6 +888,9 @@
     </footer>
 
     <script>
+        // Register the datalabels plugin
+        Chart.register(ChartDataLabels);
+        
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabButtons = document.querySelectorAll('.tab-button');
@@ -744,6 +989,11 @@
                         y: {
                             beginAtZero: true
                         }
+                    },
+                    plugins: {
+                        datalabels: {
+                            display: false // Disable for line charts
+                        }
                     }
                 }
             });
@@ -783,6 +1033,20 @@
                             title: {
                                 display: true,
                                 text: xAxisLabel
+                            }
+                        }
+                    },
+                    plugins: {
+                        datalabels: {
+                            anchor: 'center',
+                            align: 'center',
+                            color: 'white',
+                            font: {
+                                weight: 'bold',
+                                size: 14
+                            },
+                            formatter: function(value, context) {
+                                return value;
                             }
                         }
                     }
@@ -1189,10 +1453,19 @@
             reportCharts = {};
             
             let html = `
-                <div class="report-header">
-                    <h3>Barangay Amungan Chatbot Report</h3>
-                    <p>Period: ${formattedStartDate} to ${formattedEndDate}</p>
-                    <p>Generated on: ${new Date().toLocaleString()}</p>
+                <div class="official-report-header">
+                    <div class="header-content">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Barangay Logo" class="header-logo">
+                        <div class="header-text">
+                            <p class="country">Republic of the Philippines</p>
+                            <p class="province">Province of Zambales</p>
+                            <p class="barangay">BARANGAY AMUNGAN</p>
+                        </div>
+                    </div>
+                    <h2 class="report-title">Statistical Report</h2>
+                    <p class="report-subtitle">Barangay Amungan AI Chatbot (BAAC) Analytics</p>
+                    <p class="report-subtitle">Period: ${formattedStartDate} to ${formattedEndDate}</p>
+                    <p class="report-subtitle">Generated on: ${new Date().toLocaleString()}</p>
                 </div>
             `;
             
@@ -1368,6 +1641,18 @@
                 `;
             }
             
+            // Attestation Section
+            html += `
+                <div class="attestation-section">
+                    <div class="attestation-box">
+                        <p class="attestation-text">Prepared and verified by:</p>
+                        <div class="signature-line"></div>
+                        <p class="attestator-name">[SIGNATORIES OF REPORT]</p>
+                        <p class="attestator-title">Barangay Official</p>
+                    </div>
+                </div>
+            `;
+            
             container.innerHTML = html;
             
             // Create charts if graphs are enabled
@@ -1397,6 +1682,11 @@
                                     y: {
                                         beginAtZero: true
                                     }
+                                },
+                                plugins: {
+                                    datalabels: {
+                                        display: false // Disable for line charts
+                                    }
                                 }
                             }
                         });
@@ -1409,10 +1699,11 @@
                     if (docTypeChartElement) {
                         const ctx = docTypeChartElement.getContext('2d');
                         reportCharts.docTypes = new Chart(ctx, {
-                            type: 'pie',
+                            type: 'bar',
                             data: {
                                 labels: data.documentTypesData.map(item => item.document_type),
                                 datasets: [{
+                                    label: 'Document Requests',
                                     data: data.documentTypesData.map(item => item.total_requests),
                                     backgroundColor: [
                                         'rgba(229, 57, 53, 0.7)',
@@ -1432,9 +1723,23 @@
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true
+                                    }
+                                },
                                 plugins: {
-                                    legend: {
-                                        position: 'right',
+                                    datalabels: {
+                                        anchor: 'center',
+                                        align: 'center',
+                                        color: 'white',
+                                        font: {
+                                            weight: 'bold',
+                                            size: 14
+                                        },
+                                        formatter: function(value, context) {
+                                            return value;
+                                        }
                                     }
                                 }
                             }
@@ -1476,6 +1781,20 @@
                                     y: {
                                         beginAtZero: true
                                     }
+                                },
+                                plugins: {
+                                    datalabels: {
+                                        anchor: 'center',
+                                        align: 'center',
+                                        color: 'white',
+                                        font: {
+                                            weight: 'bold',
+                                            size: 14
+                                        },
+                                        formatter: function(value, context) {
+                                            return value;
+                                        }
+                                    }
                                 }
                             }
                         });
@@ -1509,6 +1828,20 @@
                                 scales: {
                                     x: {
                                         beginAtZero: true
+                                    }
+                                },
+                                plugins: {
+                                    datalabels: {
+                                        anchor: 'center',
+                                        align: 'center',
+                                        color: 'white',
+                                        font: {
+                                            weight: 'bold',
+                                            size: 12
+                                        },
+                                        formatter: function(value, context) {
+                                            return value;
+                                        }
                                     }
                                 }
                             }
