@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - BAAC</title>
+    <link rel="icon" href="{{ url_for('static', filename='/images/logo.png') }}" type="image/jpeg">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .logo img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            filter: drop-shadow(0 4px 8px rgba(229, 57, 53, 0.3));
+        }
+
+        .app-title {
+            color: #e53935;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .app-subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .page-title {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+
+        .flash-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-left: 4px solid;
+        }
+
+        .flash-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left-color: #4CAF50;
+        }
+
+        .flash-message.danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left-color: #e53935;
+        }
+
+        .flash-message.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border-left-color: #ffc107;
+        }
+
+        .flash-message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-left-color: #17a2b8;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: "Inter", sans-serif;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #e53935;
+            box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.1);
+        }
+
+        .login-btn {
+            background-color: #e53935;
+            color: white;
+            padding: 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+            position: relative;
+        }
+
+        .login-btn:hover {
+            background-color: #c62828;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.4);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .verification-notice {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .verification-notice strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .resend-verification {
+            margin-top: 15px;
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 152, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .resend-verification p {
+            margin: 10px 0;
+            font-size: 13px;
+            color: #856404;
+            font-weight: 600;
+        }
+
+        .resend-form {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .resend-form input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 180px;
+            font-family: "Inter", sans-serif;
+        }
+
+        .resend-btn {
+            background-color: #ff9800;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .resend-btn:hover {
+            background-color: #f57c00;
+            transform: translateY(-1px);
+        }
+
+        .register-link {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .register-link p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .register-link a {
+            color: #e53935;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .register-link a:hover {
+            color: #c62828;
+            text-decoration: underline;
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .forgot-password a {
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .forgot-password a:hover {
+            color: #e53935;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .login-container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+
+            .app-title {
+                font-size: 24px;
+            }
+
+            .resend-form {
+                flex-direction: column;
+            }
+
+            .resend-form input {
+                width: 100%;
+                min-width: auto;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo-section">
+            <div class="logo">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="BAAC Logo">
+            </div>
+            <h1 class="app-title">BAAC</h1>
+            <p class="app-subtitle">Barangay Amungan Assistant Chatbot</p>
+            <h2 class="page-title">Welcome Back</h2>
+        </div>
+        
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        
+        <form class="login-form" method="POST" id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="Enter your email address">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter your password">
+            </div>
+            
+            <button type="submit" class="login-btn" id="submitBtn">
+                Sign In
+            </button>
+        </form>
+        
+        <div class="forgot-password">
+            <a href="{{ url_for('forgot_password') }}">Forgot your password?</a>
+        </div>
+        </div>
+        
+        <div class="verification-notice">
+            <strong>📧 Email Verification Required</strong>
+            If you haven't verified your email yet, please check your inbox for the verification link. You must verify your email before you can log in.
+            
+            <div class="resend-verification">
+                <p>Didn't receive the verification email?</p>
+                <form id="resendForm" class="resend-form">
+                    <input type="email" id="resendEmail" placeholder="Enter your email address" required>
+                    <button type="submit" class="resend-btn">Resend Verification</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="register-link">
+            <p>Don't have an account? <a href="{{ url_for('register') }}">Create one here</a></p>
+        </div>
+    </div>
+    
+    <script>
+        // Form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const submitButton = document.getElementById('submitBtn');
+            submitButton.classList.add('loading');
+            submitButton.textContent = 'Signing In...';
+        });
+
+        // Handle resend verification
+        document.getElementById('resendForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('resendEmail').value;
+            const button = this.querySelector('button');
+            const originalText = button.textContent;
+            
+            if (!email) {
+                alert('Please enter your email address');
+                return;
+            }
+            
+            // Disable button and show loading
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            button.classList.add('loading');
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            fetch('/resend-verification', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Verification email sent successfully! Please check your inbox.');
+                    document.getElementById('resendEmail').value = '';
+                } else {
+                    alert('❌ ' + (data.message || 'Failed to send verification email'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ An error occurred while sending verification email');
+            })
+            .finally(() => {
+                // Re-enable button
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('loading');
+            });
+        });
+
+        // Auto-focus first input
+        document.getElementById('email').focus();
+    </script>
+</body>
+</html>
