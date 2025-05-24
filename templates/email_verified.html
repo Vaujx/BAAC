@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - BAAC</title>
+    <link rel="icon" href="{{ url_for('static', filename='/images/logo.png') }}" type="image/jpeg">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .verification-container {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .logo-section {
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .logo img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            filter: drop-shadow(0 4px 8px rgba(229, 57, 53, 0.3));
+        }
+
+        .app-title {
+            color: #e53935;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .app-subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+
+        .success-icon.success {
+            color: #4CAF50;
+        }
+
+        .error-icon {
+            font-size: 80px;
+            color: #e53935;
+            margin-bottom: 20px;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% {
+                transform: translateX(0);
+            }
+            25% {
+                transform: translateX(-5px);
+            }
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        .verification-title {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 700;
+        }
+
+        .verification-title.success {
+            color: #4CAF50;
+        }
+
+        .verification-title.error {
+            color: #e53935;
+        }
+
+        .verification-message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            min-width: 140px;
+            font-family: "Inter", sans-serif;
+        }
+
+        .btn-primary {
+            background-color: #e53935;
+            color: white;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: #c62828;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: #2196F3;
+            color: white;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background-color: #1976D2;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #666;
+            border: 2px solid #ddd;
+        }
+
+        .btn-outline:hover {
+            background: #f5f5f5;
+            border-color: #999;
+            transform: translateY(-2px);
+        }
+
+        .verification-steps {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 30px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+
+        .verification-steps h4 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .verification-steps ol {
+            color: #666;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+
+        .verification-steps li {
+            margin-bottom: 8px;
+        }
+
+        .resend-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+        }
+
+        .resend-section h4 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .resend-section p {
+            color: #856404;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .resend-form {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .resend-form input {
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 250px;
+            background: white;
+            font-family: "Inter", sans-serif;
+        }
+
+        .resend-form input:focus {
+            outline: none;
+            border-color: #ff9800;
+            box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+        }
+
+        .resend-form button {
+            background-color: #ff9800;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-family: "Inter", sans-serif;
+        }
+
+        .resend-form button:hover {
+            background-color: #f57c00;
+            transform: translateY(-2px);
+        }
+
+        .troubleshooting {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 30px;
+            text-align: left;
+        }
+
+        .troubleshooting h4 {
+            color: #1565c0;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .troubleshooting ol {
+            color: #1565c0;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+
+        .troubleshooting li {
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .verification-container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+
+            .verification-title {
+                font-size: 28px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .resend-form {
+                flex-direction: column;
+            }
+
+            .resend-form input {
+                width: 100%;
+                min-width: auto;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+            position: relative;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="verification-container">
+        <div class="logo-section">
+            <div class="logo">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="BAAC Logo">
+            </div>
+            <h1 class="app-title">BAAC</h1>
+            <p class="app-subtitle">Barangay Amungan Assistant Chatbot</p>
+        </div>
+
+        {% if success %}
+            <div class="success-icon success">✅</div>
+            <h1 class="verification-title success">Email Verified Successfully!</h1>
+            <p class="verification-message">
+                {{ message }}<br><br>
+                Your account is now active and you can start using all the features of BAAC (Barangay Amungan Assistant Chatbot).
+            </p>
+            
+            <div class="action-buttons">
+                <a href="{{ url_for('login') }}" class="btn btn-primary">Login Now</a>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Go to Homepage</a>
+            </div>
+            
+            <div class="verification-steps">
+                <h4>🎉 What's Next?</h4>
+                <ol>
+                    <li>Click "Login Now" to access your account</li>
+                    <li>Start chatting with BAAC for assistance</li>
+                    <li>Request barangay documents when needed</li>
+                    <li>Track your document requests and chat history</li>
+                    <li>Enjoy seamless access to barangay services</li>
+                </ol>
+            </div>
+            
+        {% else %}
+            <div class="error-icon">❌</div>
+            <h1 class="verification-title error">Verification Failed</h1>
+            <p class="verification-message">
+                {{ message }}<br><br>
+                This could happen if the verification link has expired or has already been used.
+            </p>
+            
+            <div class="action-buttons">
+                <a href="{{ url_for('register') }}" class="btn btn-primary">Register Again</a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline">Try Login</a>
+            </div>
+            
+            <div class="resend-section">
+                <h4>📧 Need a New Verification Email?</h4>
+                <p>
+                    If you have an unverified account, enter your email below to receive a new verification link.
+                </p>
+                
+                <form class="resend-form" id="resendVerificationForm">
+                    <input type="email" id="resendEmail" placeholder="Enter your email address" required>
+                    <button type="submit">Resend Verification</button>
+                </form>
+            </div>
+            
+            <div class="troubleshooting">
+                <h4>🔧 Troubleshooting Tips:</h4>
+                <ol>
+                    <li>Check if the verification link has expired (valid for 24 hours)</li>
+                    <li>Make sure you're using the latest verification email</li>
+                    <li>Check your spam/junk folder for the verification email</li>
+                    <li>Try registering with a different email if the issue persists</li>
+                    <li>Contact support if you continue having problems</li>
+                </ol>
+            </div>
+        {% endif %}
+    </div>
+    
+    <script>
+        // Handle resend verification form
+        document.getElementById('resendVerificationForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('resendEmail').value;
+            const button = this.querySelector('button');
+            const originalText = button.textContent;
+            
+            // Disable button and show loading
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            button.classList.add('loading');
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            fetch('/resend-verification', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Verification email sent successfully! Please check your inbox.');
+                    document.getElementById('resendEmail').value = '';
+                } else {
+                    alert('❌ ' + (data.message || 'Failed to send verification email'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ An error occurred while sending verification email');
+            })
+            .finally(() => {
+                // Re-enable button
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('loading');
+            });
+        });
+
+        // Auto-redirect to login after successful verification (optional)
+        {% if success %}
+            // Show a countdown timer for auto-redirect
+            let countdown = 10;
+            const countdownElement = document.createElement('p');
+            countdownElement.style.cssText = 'margin-top: 20px; color: #666; font-size: 14px;';
+            countdownElement.innerHTML = `Automatically redirecting to login in <span style="color: #e53935; font-weight: bold;">${countdown}</span> seconds...`;
+            document.querySelector('.action-buttons').after(countdownElement);
+
+            const timer = setInterval(() => {
+                countdown--;
+                countdownElement.querySelector('span').textContent = countdown;
+                
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    window.location.href = "{{ url_for('login') }}";
+                }
+            }, 1000);
+
+            // Allow user to cancel auto-redirect by clicking anywhere
+            document.addEventListener('click', () => {
+                clearInterval(timer);
+                countdownElement.remove();
+            });
+        {% endif %}
+    </script>
+</body>
+</html>
