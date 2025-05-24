@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, make_response
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -9,6 +9,20 @@ from datetime import datetime, timedelta
 import logging
 import re
 import json
+import jwt
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from werkzeug.security import generate_password_hash, check_password_hash
+from auth_utils import hash_password, verify_password, generate_token, verify_token, verify_google_token
+from barangay_data import (
+    BARANGAY_OFFICIALS_INFO, 
+    AVAILABLE_DOCUMENTS, 
+    is_about_officials, 
+    is_about_population, 
+    detect_document_type
+)
 
 # Configure logging
 logging.basicConfig(
@@ -27,9 +41,15 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))  # Use environment variable if available
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())  # Use environment variable if available
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session expires after 1 hour
+
+# Email configuration
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+EMAIL_ADDRESS = 'baac.ai.zambales@gmail.com'
+EMAIL_PASSWORD = 'vntq tvkq cvjx vcbi'  # App password
 
 # Load the GEMINI_API_KEY from environment variables
 api_key = os.getenv("GEMINI_API_KEY")
@@ -55,149 +75,12 @@ model = genai.GenerativeModel(
     generation_config=generation_config,
 )
 
-# Available document types
-AVAILABLE_DOCUMENTS = ["barangay clearance", "barangay indigency", "barangay residency"]
-
 # Admin credentials from environment variables
 ADMIN_KEY = os.getenv("ADMIN_KEY", "EASTER")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "EGG")
 
 # Database URL - get from environment or use default for development
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://root:Ep7Ql5c4D25GlHeIhpnVpwjEEzfJBgnj@dpg-d08ercngi27c738hbdog-a.oregon-postgres.render.com/baacdb")
-
-# Hardcoded Barangay Officials Information
-BARANGAY_OFFICIALS_INFO = """
-Barangay Amungan Officials:
-
-Punong Barangay (also called Captain, Kapitan, Cap, or Kap): Richard N. Redondo
-
-Barangay Kagawad (Councilors):
-- Joseph D. Flauta
-- Walter L. Olipane
-- Richard D. Arquero
-- Arnold R. Lonzanida
-- Jesieline C. Sibug
-- Darius S. Susa Sr.
-- Russel S. Aramay
-
-Barangay Secretary: Darrel Castrence
-Barangay Treasurer: Rodalyn E. Gutierrez
-
-Sangguniang Kabataan (SK) Officials (in hierarchical order):
-- Carl Eric B. Rico (SK Chairperson)
-- Arnel Jake E. Mercado
-- Danica D. Barried
-- Marjurine R. Dagsaan
-- Grace E. Ednalaga
-- Christian Lloyd R. Susa
-- Criezel Mae P. Santos
-- Gabriel Vonz M. Macalinao
-- Patricia Leigh M. Rebultan
-- Ellysa Famisan
-
-Purok Presidents (Barangay Amungan has a total of 14 puroks):
-- Purok 1: Felimon V. Aramay Jr.
-- Purok 2: Joselyn Alarma
-- Purok 3: Alvin Abadam
-- Purok 4: Moises S. Castrence
-- Purok 5: Carlos B. Dagun
-- Purok 6: Lelyrose Arcino
-- Purok 7: Belen A. Famisan
-- Purok 8: Marissa Cristobal
-- Purok 9: Jean Abad
-- Purok 10: Gilbert Baluyot
-- Purok 11: Jerry P. Cristobal
-- Purok 12: Henry Adona
-- Purok 13: Nelsa T. Aramay
-- Purok 14: Jayson Mora
-
-Population Information of Barangay Amungan by Age Range:
-
-Under 5 Years Old
-Male: 443
-Female: 412
-Total: 855
-
-5 - 9 Years Old
-Male: 481
-Female: 488
-Total: 969
-
-10 - 14 Years Old
-Male: 571
-Female: 533
-Total: 1,104
-
-15 - 19 Years Old
-Male: 581
-Female: 563
-Total: 1,144
-
-20 - 24 Years Old
-Male: 629
-Female: 561
-Total: 1,190
-
-25 - 29 Years Old
-Male: 591
-Female: 607
-Total: 1,198
-
-30 - 34 Years Old
-Male: 517
-Female: 510
-Total: 1,027
-
-35 - 39 Years Old
-Male: 490
-Female: 438
-Total: 928
-
-40 - 44 Years Old
-Male: 401
-Female: 422
-Total: 823
-
-45 - 49 Years Old
-Male: 345
-Female: 393
-Total: 738
-
-50 - 54 Years Old
-Male: 285
-Female: 294
-Total: 579
-
-55 - 59 Years Old
-Male: 268
-Female: 300
-Total: 568
-
-60 - 64 Years Old
-Male: 257
-Female: 230
-Total: 487
-
-65 - 69 Years Old
-Male: 201
-Female: 192
-Total: 393
-
-70 - 74 Years Old
-Male: 124
-Female: 152
-Total: 276
-
-75 - 79 Years Old
-Male: 63
-Female: 88
-Total: 151
-
-80 Years Old and Over
-Male: 43
-Female: 97
-Total: 140
-"""
 
 # PostgreSQL connection pool
 try:
@@ -224,16 +107,207 @@ def get_connection():
 def return_connection(connection):
     connection_pool.putconn(connection)
 
+# Email verification functions
+def send_verification_email(email, username, verification_token):
+    """Send verification email to user"""
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "BAAC - Verify Your Email Address"
+        
+        # Create verification URL
+        verification_url = f"{request.url_root}verify-email/{verification_token}"
+        
+        # Email body
+        body = f"""
+        <html>
+        <body>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2c3e50;">Welcome to BAAC!</h2>
+                <p>Hello {username},</p>
+                <p>Thank you for registering with BAAC (Barangay Amungan Assistant Chatbot). To complete your registration, please verify your email address by clicking the button below:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{verification_url}" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email Address</a>
+                </div>
+                
+                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #3498db;">{verification_url}</p>
+                
+                <p><strong>Note:</strong> This verification link will expire in 24 hours.</p>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+                <p style="color: #7f8c8d; font-size: 12px;">
+                    This email was sent by BAAC (Barangay Amungan Assistant Chatbot). If you didn't create an account, please ignore this email.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Send email
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(EMAIL_ADDRESS, email, text)
+        server.quit()
+        
+        logger.info(f"Verification email sent to {email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {email}: {str(e)}")
+        return False
+
+def send_password_reset_email(email, username, reset_token):
+    """Send password reset email to user"""
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "BAAC - Password Reset Request"
+        
+        # Create reset URL
+        reset_url = f"{request.url_root}reset_password/{reset_token}"
+        
+        # Email body
+        body = f"""
+        <html>
+        <body>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #e53935;">Password Reset Request</h2>
+                <p>Hello {username},</p>
+                <p>We received a request to reset your password for your BAAC (Barangay Amungan Assistant Chatbot) account. If you made this request, please click the button below to reset your password:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_url}" style="background-color: #e53935; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
+                </div>
+                
+                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #e53935;">{reset_url}</p>
+                
+                <p><strong>Important:</strong></p>
+                <ul>
+                    <li>This password reset link will expire in 1 hour for security reasons</li>
+                    <li>You can only use this link once</li>
+                    <li>If you didn't request this password reset, please ignore this email</li>
+                </ul>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+                <p style="color: #7f8c8d; font-size: 12px;">
+                    This email was sent by BAAC (Barangay Amungan Assistant Chatbot). If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Send email
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(EMAIL_ADDRESS, email, text)
+        server.quit()
+        
+        logger.info(f"Password reset email sent to {email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {email}: {str(e)}")
+        return False
+
+def generate_verification_token():
+    """Generate a secure verification token"""
+    return secrets.token_urlsafe(32)
+
+def verify_email_token(verification_token):
+    """Verify user email with token"""
+    connection = get_connection()
+    if connection is None:
+        return False, "Database connection failed"
+        
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Find user with verification token
+        cursor.execute('''
+            SELECT id, name, email, verification_expires 
+            FROM app_users 
+            WHERE verification_token = %s AND is_verified = FALSE
+        ''', (verification_token,))
+        
+        user = cursor.fetchone()
+        
+        if not user:
+            return False, "Invalid or expired verification token"
+        
+        user_id, username, email, verification_expires = user
+        
+        # Check if token has expired
+        if datetime.now() > verification_expires:
+            return False, "Verification token has expired"
+        
+        # Update user as verified
+        cursor.execute('''
+            UPDATE app_users 
+            SET is_verified = TRUE, verification_token = NULL, verification_expires = NULL
+            WHERE id = %s
+        ''', (user_id,))
+        
+        connection.commit()
+        
+        logger.info(f"User {username} ({email}) verified successfully")
+        return True, f"Email verified successfully! You can now log in with your account."
+        
+    except Exception as e:
+        logger.error(f"Error verifying email: {str(e)}")
+        connection.rollback()
+        return False, "An error occurred during verification"
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to get user by email
+def get_user_by_email(email):
+    connection = get_connection()
+    if connection is None:
+        return None
+    
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "SELECT * FROM app_users WHERE email = %s"
+        cursor.execute(query, (email,))
+        user = cursor.fetchone()
+        
+        if user:
+            return dict(user)
+        return None
+    except Exception as e:
+        logger.error(f"Error getting user by email: {e}")
+        return None
+    finally:
+        cursor.close()
+        return_connection(connection)
+
 # Function to log conversations
-def log_conversation(user_input, ai_response):
+def log_conversation(user_input, ai_response, user_id=None):
     connection = get_connection()
     if connection is None:
         return
 
     try:
         cursor = connection.cursor()
-        query = "INSERT INTO conversation_logs (user_input, ai_response, timestamp) VALUES (%s, %s, %s)"
-        values = (user_input, ai_response, datetime.now())
+        query = "INSERT INTO conversation_logs (user_input, ai_response, timestamp, user_id) VALUES (%s, %s, %s, %s)"
+        values = (user_input, ai_response, datetime.now(), user_id)
         cursor.execute(query, values)
         connection.commit()
     except Exception as e:
@@ -342,82 +416,6 @@ def get_document_status(reference_id):
             cursor.close()
         if connection is not None:
             return_connection(connection)
-
-# Helper function to detect document type in a query
-def detect_document_type(query):
-    query_lower = query.lower()
-
-    # Check for barangay clearance
-    if "clearance" in query_lower:
-        return "barangay clearance"
-
-    # Check for barangay indigency (including common misspellings)
-    if any(word in query_lower for word in ["indigency", "indengency", "indengecy", "indegency"]):
-        return "barangay indigency"
-
-    # Check for barangay residency
-    if "residency" in query_lower:
-        return "barangay residency"
-
-    # If no specific document type is found, check for general document mentions
-    for doc_type in AVAILABLE_DOCUMENTS:
-        if doc_type in query_lower:
-            return doc_type
-
-    return None
-
-# Function to check if a query is about barangay officials
-def is_about_officials(query):
-    query_lower = query.lower()
-
-    # Check for general terms about officials
-    official_terms = [
-        "official", "officials", "barangay official", "barangay officials",
-        "kagawad", "councilor", "council", "secretary", "treasurer",
-        "captain", "kapitan", "chairman", "punong", "kap ", "cap ",
-        "sk", "sangguniang kabataan", "youth council", "youth",
-        "purok", "purok president", "purok leader", "president"
-    ]
-
-    # Check for specific names of officials
-    official_names = [
-        "redondo", "flauta", "olipane", "arquero", "lonzanida", 
-        "sibug", "susa", "aramay", "castrence", "gutierrez",
-        "rico", "mercado", "barried", "dagsaan", "ednalaga",
-        "santos", "macalinao", "rebultan", "famisan",
-        "alarma", "abadam", "dagun", "arcino", "abad",
-        "baluyot", "cristobal", "adona", "mora"
-    ]
-
-    # Check if any term is in the query
-    for term in official_terms:
-        if term in query_lower:
-            return True
-
-    # Check if any name is in the query
-    for name in official_names:
-        if name in query_lower:
-            return True
-
-    return False
-
-# Function to check if a query is about population information
-def is_about_population(query):
-    query_lower = query.lower()
-
-    # Check for population-related terms
-    population_terms = [
-        "population", "demographics", "residents", "people", "citizens",
-        "age", "gender", "male", "female", "men", "women", "boys", "girls",
-        "statistics", "census", "how many people", "total population"
-    ]
-
-    # Check if any term is in the query
-    for term in population_terms:
-        if term in query_lower:
-            return True
-
-    return False
 
 # Function to format response with proper HTML styling
 def format_response_html(text):
@@ -566,16 +564,1048 @@ def get_conversation_history_context():
     
     return context
 
+# Function to get chat history context for a specific chat
+def get_chat_history_context(chat_id, user_id):
+    connection = get_connection()
+    if connection is None:
+        return ""
+        
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return ""
+        
+        # Get the most recent messages (limit to last 10 for context window)
+        query = """
+        SELECT is_user, message
+        FROM chat_messages
+        WHERE chat_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 10
+        """
+        cursor.execute(query, (chat_id,))
+        
+        messages = cursor.fetchall()
+        
+        if not messages:
+            return ""
+        
+        # Format the messages for context
+        context = "\nRecent conversation history:\n"
+        
+        # Reverse the messages to get chronological order
+        for message in reversed(messages):
+            is_user = message['is_user']
+            msg_text = message['message']
+            
+            # Strip HTML tags for cleaner context
+            msg_text = re.sub(r'<.*?>', '', msg_text)
+            
+            if is_user:
+                context += f"User: {msg_text}\n"
+            else:
+                context += f"BAAC: {msg_text}\n\n"
+        
+        return context
+    except Exception as e:
+        logger.error(f"Error getting chat history context: {e}")
+        return ""
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to save a message to a chat
+def save_message_to_chat(chat_id, user_id, user_message, ai_message):
+    connection = get_connection()
+    if connection is None:
+        logger.error("Failed to get database connection in save_message_to_chat")
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return False
+        
+        # Save user message
+        user_query = """
+        INSERT INTO chat_messages (chat_id, is_user, message)
+        VALUES (%s, TRUE, %s)
+        """
+        cursor.execute(user_query, (chat_id, user_message))
+        
+        # Save AI message
+        ai_query = """
+        INSERT INTO chat_messages (chat_id, is_user, message)
+        VALUES (%s, FALSE, %s)
+        """
+        cursor.execute(ai_query, (chat_id, ai_message))
+        
+        # Update the chat's updated_at timestamp
+        update_query = """
+        UPDATE chat_histories
+        SET updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """
+        cursor.execute(update_query, (chat_id,))
+        
+        connection.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error saving message to chat: {e}")
+        connection.rollback()
+        return False
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to get messages for a specific chat
+def get_chat_messages_by_id(chat_id, user_id):
+    connection = get_connection()
+    if connection is None:
+        return []
+        
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return []
+        
+        # Get the chat messages
+        query = """
+        SELECT id, is_user, message, timestamp
+        FROM chat_messages
+        WHERE chat_id = %s
+        ORDER BY timestamp ASC
+        """
+        cursor.execute(query, (chat_id,))
+        
+        messages = []
+        for row in cursor.fetchall():
+            message = dict(row)
+            # Format dates for JSON
+            if message.get('timestamp'):
+                message['timestamp'] = message['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            messages.append(message)
+        
+        return messages
+    except Exception as e:
+        logger.error(f"Error fetching chat messages: {e}")
+        return []
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to create chat history tables
+def create_chat_history_tables():
+    connection = get_connection()
+    if connection is None:
+        logger.error("Failed to get database connection to create chat history tables")
+        return
+    
+    try:
+        cursor = connection.cursor()
+        
+        # Create chat_histories table if it doesn't exist
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_histories (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            title VARCHAR(255) NOT NULL DEFAULT 'New Chat',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE
+        )
+        """)
+        
+        # Check if chat_messages table exists
+        cursor.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'chat_messages'
+        );
+        """)
+        
+        table_exists = cursor.fetchone()[0]
+        
+        # Only create the chat_messages table if it doesn't exist
+        if not table_exists:
+            logger.info("Creating chat_messages table...")
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                chat_id INTEGER NOT NULL,
+                is_user BOOLEAN NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chat_messages_chat_id_fkey
+                FOREIGN KEY (chat_id) REFERENCES chat_histories(id) ON DELETE CASCADE
+            );
+            """)
+            
+            # Create index on chat_id for better performance
+            cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages(chat_id);
+            """)
+        else:
+            logger.info("chat_messages table already exists, skipping creation")
+        
+        # Add foreign key constraint for chat_histories if it doesn't exist
+        cursor.execute("""
+        SELECT COUNT(*)
+        FROM information_schema.table_constraints
+        WHERE constraint_name = 'chat_histories_user_id_fkey'
+        AND table_name = 'chat_histories'
+        """)
+        
+        if cursor.fetchone()[0] == 0:
+            logger.info("Adding foreign key constraint to chat_histories table...")
+            cursor.execute("""
+            ALTER TABLE chat_histories
+            ADD CONSTRAINT chat_histories_user_id_fkey
+            FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+            """)
+        
+        connection.commit()
+        logger.info("Chat history tables verified successfully")
+    except Exception as e:
+        logger.error(f"Error verifying chat history tables: {e}")
+        connection.rollback()
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to update user table for email verification
+def update_user_table_for_verification():
+    connection = get_connection()
+    if connection is None:
+        logger.error("Failed to get database connection to update user table")
+        return
+    
+    try:
+        cursor = connection.cursor()
+        
+        # Check if verification columns exist
+        cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'app_users' AND column_name IN ('is_verified', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires')
+        """)
+        
+        existing_columns = [row[0] for row in cursor.fetchall()]
+        
+        # Add missing columns
+        if 'is_verified' not in existing_columns:
+            cursor.execute("ALTER TABLE app_users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE")
+            logger.info("Added is_verified column to app_users table")
+        
+        if 'verification_token' not in existing_columns:
+            cursor.execute("ALTER TABLE app_users ADD COLUMN verification_token TEXT")
+            logger.info("Added verification_token column to app_users table")
+        
+        if 'verification_expires' not in existing_columns:
+            cursor.execute("ALTER TABLE app_users ADD COLUMN verification_expires TIMESTAMP")
+            logger.info("Added verification_expires column to app_users table")
+            
+        if 'reset_token' not in existing_columns:
+            cursor.execute("ALTER TABLE app_users ADD COLUMN reset_token TEXT")
+            logger.info("Added reset_token column to app_users table")
+        
+        if 'reset_expires' not in existing_columns:
+            cursor.execute("ALTER TABLE app_users ADD COLUMN reset_expires TIMESTAMP")
+            logger.info("Added reset_expires column to app_users table")
+        
+        connection.commit()
+        logger.info("User table updated for email verification and password reset")
+    except Exception as e:
+        logger.error(f"Error updating user table for verification: {e}")
+        connection.rollback()
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to get user by Google ID
+def get_user_by_google_id(google_id):
+    connection = get_connection()
+    if connection is None:
+        return None
+        
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "SELECT * FROM app_users WHERE oauth_id = %s AND oauth_provider = 'google'"
+        cursor.execute(query, (google_id,))
+        user = cursor.fetchone()
+        
+        if user:
+            return dict(user)
+        return None
+    except Exception as e:
+        logger.error(f"Error getting user by Google ID: {e}")
+        return None
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to create a new user
+def create_user(name, email, password_hash=None, oauth_provider=None, oauth_id=None, profile_pic=None, is_verified=False, verification_token=None, verification_expires=None):
+    connection = get_connection()
+    if connection is None:
+        return None
+        
+    try:
+        cursor = connection.cursor()
+        query = """
+        INSERT INTO app_users (name, email, password_hash, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        values = (name, email, password_hash, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, datetime.now())
+        cursor.execute(query, values)
+        user_id = cursor.fetchone()[0]
+        connection.commit()
+        
+        return user_id
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        connection.rollback()
+        return None
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to store OAuth token
+def store_oauth_token(user_id, provider, token):
+    connection = get_connection()
+    if connection is None:
+        return False
+        
+    try:
+        cursor = connection.cursor()
+        
+        # Check if oauth_tokens table exists
+        cursor.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'oauth_tokens'
+        );
+        """)
+        
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            # Create the oauth_tokens table if it doesn't exist
+            cursor.execute("""
+            CREATE TABLE oauth_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                token TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+        # Insert or update the token
+        cursor.execute("""
+        INSERT INTO oauth_tokens (user_id, provider, token)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (user_id, provider) 
+        DO UPDATE SET token = EXCLUDED.token
+        """, (user_id, provider, token))
+        
+        connection.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error storing OAuth token: {e}")
+        connection.rollback()
+        return False
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to get user by ID
+def get_user_by_id(user_id):
+    connection = get_connection()
+    if connection is None:
+        return None
+        
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "SELECT * FROM app_users WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        user = cursor.fetchone()
+        
+        if user:
+            return dict(user)
+        return None
+    except Exception as e:
+        logger.error(f"Error getting user by ID: {e}")
+        return None
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to create a new chat history
+def create_chat_history(user_id, title="New Chat"):
+    connection = get_connection()
+    if connection is None:
+        return None
+    
+    try:
+        cursor = connection.cursor()
+        query = """
+        INSERT INTO chat_histories (user_id, title, created_at, updated_at, is_active)
+        VALUES (%s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE)
+        RETURNING id
+        """
+        cursor.execute(query, (user_id, title))
+        chat_id = cursor.fetchone()[0]
+        connection.commit()
+        return chat_id
+    except Exception as e:
+        logger.error(f"Error creating chat history: {e}")
+        connection.rollback()
+        return None
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to get all active chats for a user
+def get_user_chats(user_id):
+    connection = get_connection()
+    if connection is None:
+        return []
+    
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = """
+        SELECT id, title, created_at, updated_at
+        FROM chat_histories
+        WHERE user_id = %s AND is_active = TRUE
+        ORDER BY updated_at DESC
+        """
+        cursor.execute(query, (user_id,))
+        
+        chats = []
+        for row in cursor.fetchall():
+            chat = dict(row)
+            # Format dates for JSON
+            if chat.get('created_at'):
+                chat['created_at'] = chat['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            if chat.get('updated_at'):
+                chat['updated_at'] = chat['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            chats.append(chat)
+        
+        return chats
+    except Exception as e:
+        logger.error(f"Error getting user chats: {e}")
+        return []
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to update a chat's title
+def update_chat_title(chat_id, user_id, title):
+    connection = get_connection()
+    if connection is None:
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return False
+        
+        # Update the title
+        update_query = """
+        UPDATE chat_histories
+        SET title = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """
+        cursor.execute(update_query, (title, chat_id))
+        
+        connection.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating chat title: {e}")
+        connection.rollback()
+        return False
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Function to delete a chat (soft delete)
+def delete_chat(chat_id, user_id):
+    connection = get_connection()
+    if connection is None:
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return False
+        
+        # Soft delete the chat
+        delete_query = """
+        UPDATE chat_histories
+        SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """
+        cursor.execute(delete_query, (chat_id,))
+        
+        connection.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting chat: {e}")
+        connection.rollback()
+        return False
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Authentication middleware
+def auth_required(f):
+    def decorated_function(*args, **kwargs):
+        # Check if user is logged in via session
+        if 'user_id' in session:
+            return f(*args, **kwargs)
+            
+        # Check if user is logged in via cookie
+        token = request.cookies.get('auth_token')
+        if token:
+            payload = verify_token(token)
+            if payload:
+                # Set session variables
+                session['user_id'] = payload['user_id']
+                session['email'] = payload['email']
+                session['name'] = payload['name']
+                return f(*args, **kwargs)
+        
+        # User is not logged in, redirect to login page
+        return redirect(url_for('login'))
+    
+    # Preserve the function name
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+# Function to check if user is logged in
+def is_user_logged_in():
+    # Check if user is logged in via session
+    if 'user_id' in session:
+        return True
+        
+    # Check if user is logged in via cookie
+    token = request.cookies.get('auth_token')
+    if token:
+        payload = verify_token(token)
+        if payload:
+            # Set session variables
+            session['user_id'] = payload['user_id']
+            session['email'] = payload['email']
+            session['name'] = payload['name']
+            return True
+    
+    return False
+
 # Route for the index page (UI interface)
 @app.route('/')
 def index():
-    # Clear conversation history on page load
-    if 'conversation_history' in session:
-        session['conversation_history'] = []
-        session.modified = True
-        
     log_website_visit()
-    return render_template('index.html')
+    
+    # Check if user is logged in
+    user = None
+    if 'user_id' in session:
+        user_id = session['user_id']
+        user = get_user_by_id(user_id)
+    
+    return render_template('index.html', user=user)
+
+# Route for login page
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Validate input
+        if not email or not password:
+            flash('Email and password are required', 'danger')
+            return render_template('login.html')
+        
+        # Get user by email
+        user = get_user_by_email(email)
+        if not user or not user['password_hash'] or not verify_password(user['password_hash'], password):
+            flash('Invalid email or password', 'danger')
+            return render_template('login.html')
+        
+        # Check if email is verified
+        if not user.get('is_verified', False):
+            flash('Please verify your email address before logging in. Check your inbox for the verification link.', 'warning')
+            return render_template('login.html')
+        
+        # Set session variables
+        session['user_id'] = user['id']
+        session['email'] = user['email']
+        session['name'] = user['name']
+        
+        # Generate JWT token
+        token = generate_token(user['id'], user['email'], user['name'])
+        
+        # Create response with redirect
+        response = make_response(redirect(url_for('index')))
+        
+        # Set cookie with token
+        response.set_cookie(
+            'auth_token', 
+            token, 
+            max_age=7*24*60*60,  # 7 days
+            httponly=True,
+            secure=True if not app.debug else False,
+            samesite='Lax'
+        )
+        
+        return response
+    
+    return render_template('login.html')
+
+@app.route('/toggle_chat_history', methods=['POST'])
+def toggle_chat_history():
+    # Store the visibility state in the session
+    if 'chat_history_visible' not in session:
+        session['chat_history_visible'] = True
+    else:
+        session['chat_history_visible'] = not session['chat_history_visible']
+    
+    session.modified = True
+    
+    return jsonify({
+        "success": True, 
+        "visible": session['chat_history_visible']
+    })
+
+# Route for registration page
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate input
+        if not name or not email or not password or not confirm_password:
+            flash('All fields are required', 'danger')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'danger')
+            return render_template('register.html')
+        
+        # Check if user already exists
+        existing_user = get_user_by_email(email)
+        if existing_user:
+            flash('Email already registered', 'danger')
+            return render_template('register.html')
+        
+        # Hash password
+        password_hash = hash_password(password)
+        
+        # Generate verification token
+        verification_token = generate_verification_token()
+        verification_expires = datetime.now() + timedelta(hours=24)
+        
+        # Create user (not verified initially)
+        user_id = create_user(
+            name, 
+            email, 
+            password_hash, 
+            is_verified=False, 
+            verification_token=verification_token, 
+            verification_expires=verification_expires
+        )
+        
+        if not user_id:
+            flash('Registration failed', 'danger')
+            return render_template('register.html')
+        
+        # Send verification email
+        if send_verification_email(email, name, verification_token):
+            flash('Registration successful! Please check your email to verify your account before logging in.', 'success')
+        else:
+            flash('Registration successful but failed to send verification email. Please contact support.', 'warning')
+        
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
+
+# Route for email verification
+@app.route('/verify-email/<token>')
+def verify_email_route(token):
+    """Email verification route"""
+    success, message = verify_email_token(token)
+    
+    return render_template('email_verified.html', success=success, message=message)
+
+# Route to resend verification email
+@app.route('/resend-verification', methods=['POST'])
+def resend_verification():
+    """Resend verification email"""
+    email = request.form.get('email', '').strip()
+    
+    if not email:
+        return jsonify({'success': False, 'message': 'Email is required'})
+    
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({'success': False, 'message': 'Database connection failed'})
+        
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Find unverified user with this email
+        cursor.execute('''
+            SELECT id, name FROM app_users 
+            WHERE email = %s AND is_verified = FALSE
+        ''', (email,))
+        
+        user = cursor.fetchone()
+        
+        if not user:
+            return jsonify({'success': False, 'message': 'No unverified account found with this email'})
+        
+        user_id, username = user
+        
+        # Generate new verification token
+        verification_token = generate_verification_token()
+        verification_expires = datetime.now() + timedelta(hours=24)
+        
+        # Update user with new token
+        cursor.execute('''
+            UPDATE app_users 
+            SET verification_token = %s, verification_expires = %s
+            WHERE id = %s
+        ''', (verification_token, verification_expires, user_id))
+        
+        connection.commit()
+        
+        # Send verification email
+        if send_verification_email(email, username, verification_token):
+            return jsonify({'success': True, 'message': 'Verification email sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to send verification email'})
+            
+    except Exception as e:
+        logger.error(f"Error resending verification: {str(e)}")
+        return jsonify({'success': False, 'message': 'An error occurred'})
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route for Google authentication
+@app.route('/google_auth', methods=['POST'])
+def google_auth():
+    data = request.json
+    credential = data.get('credential')
+    
+    if not credential:
+        return jsonify({'success': False, 'error': 'No credential provided'})
+    
+    # Verify Google token
+    user_info = verify_google_token(credential)
+    if not user_info:
+        return jsonify({'success': False, 'error': 'Invalid Google token'})
+    
+    # Check if user exists
+    user = get_user_by_google_id(user_info['google_id'])
+    
+    if not user:
+        # Check if email already exists
+        email_user = get_user_by_email(user_info['email'])
+        
+        if email_user:
+            # Update existing user with Google info
+            connection = get_connection()
+            if connection:
+                try:
+                    cursor = connection.cursor()
+                    query = """
+                    UPDATE app_users 
+                    SET oauth_provider = 'google', oauth_id = %s, profile_pic = %s, is_verified = TRUE
+                    WHERE id = %s
+                    """
+                    cursor.execute(query, (user_info['google_id'], user_info.get('picture'), email_user['id']))
+                    connection.commit()
+                    
+                    user_id = email_user['id']
+                    name = email_user['name']
+                    email = email_user['email']
+                except Exception as e:
+                    logger.error(f"Error updating user with Google info: {e}")
+                    connection.rollback()
+                    return jsonify({'success': False, 'error': 'Failed to update user'})
+                finally:
+                    cursor.close()
+                    return_connection(connection)
+        else:
+            # Create new user (Google users are automatically verified)
+            user_id = create_user(
+                user_info['name'],
+                user_info['email'],
+                None,
+                'google',
+                user_info['google_id'],
+                user_info.get('picture'),
+                is_verified=True  # Google users are automatically verified
+            )
+            
+            if not user_id:
+                return jsonify({'success': False, 'error': 'Failed to create user'})
+                
+            name = user_info['name']
+            email = user_info['email']
+    else:
+        user_id = user['id']
+        name = user['name']
+        email = user['email']
+    
+    # Store token
+    store_oauth_token(user_id, 'google', credential)
+    
+    # Set session variables
+    session['user_id'] = user_id
+    session['email'] = email
+    session['name'] = name
+    
+    # Generate JWT token
+    token = generate_token(user_id, email, name)
+    
+    # Create response
+    response = jsonify({'success': True, 'redirect': url_for('index')})
+    
+    # Set cookie with token
+    response.set_cookie(
+        'auth_token', 
+        token, 
+        max_age=7*24*60*60,  # 7 days
+        httponly=True,
+        secure=True if not app.debug else False,
+        samesite='Lax'
+    )
+    
+    return response
+
+# Route for forgot password page
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        
+        if not email:
+            flash('Email address is required', 'danger')
+            return render_template('forgot_password.html')
+        
+        # Check if user exists (but don't reveal if email exists for security)
+        user = get_user_by_email(email)
+        
+        if user and user.get('is_verified', False):
+            # Generate password reset token
+            reset_token = generate_verification_token()
+            reset_expires = datetime.now() + timedelta(hours=1)  # 1 hour expiry
+            
+            # Store reset token in database
+            connection = get_connection()
+            if connection:
+                try:
+                    cursor = connection.cursor()
+                    query = """
+                    UPDATE app_users 
+                    SET reset_token = %s, reset_expires = %s
+                    WHERE email = %s
+                    """
+                    cursor.execute(query, (reset_token, reset_expires, email))
+                    connection.commit()
+                    
+                    # Send password reset email
+                    if send_password_reset_email(email, user['name'], reset_token):
+                        logger.info(f"Password reset email sent to {email}")
+                    else:
+                        logger.error(f"Failed to send password reset email to {email}")
+                        
+                except Exception as e:
+                    logger.error(f"Error storing reset token: {e}")
+                    connection.rollback()
+                finally:
+                    cursor.close()
+                    return_connection(connection)
+        
+        # Always show success message for security (don't reveal if email exists)
+        return render_template('forgot_password.html', success=True)
+    
+    return render_template('forgot_password.html')
+
+# Route for password reset with token
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not password or not confirm_password:
+            flash('Both password fields are required', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        # Verify reset token
+        connection = get_connection()
+        if connection is None:
+            flash('Database connection failed', 'danger')
+            return render_template('reset_password.html', error=True, error_message="Database connection failed")
+        
+        try:
+            cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            
+            # Find user with valid reset token
+            cursor.execute('''
+                SELECT id, name, email, reset_expires 
+                FROM app_users 
+                WHERE reset_token = %s AND reset_expires > %s
+            ''', (token, datetime.now()))
+            
+            user = cursor.fetchone()
+            
+            if not user:
+                return render_template('reset_password.html', error=True, error_message="This password reset link is invalid or has expired.")
+            
+            user_id, username, email, reset_expires = user
+            
+            # Hash new password
+            password_hash = hash_password(password)
+            
+            # Update user password and clear reset token
+            cursor.execute('''
+                UPDATE app_users 
+                SET password_hash = %s, reset_token = NULL, reset_expires = NULL
+                WHERE id = %s
+            ''', (password_hash, user_id))
+            
+            connection.commit()
+            
+            logger.info(f"Password reset successful for user {username} ({email})")
+            return render_template('reset_password.html', success=True)
+            
+        except Exception as e:
+            logger.error(f"Error resetting password: {str(e)}")
+            connection.rollback()
+            flash('An error occurred while resetting your password', 'danger')
+            return render_template('reset_password.html', token=token)
+        finally:
+            cursor.close()
+            return_connection(connection)
+    
+    # GET request - verify token and show form
+    connection = get_connection()
+    if connection is None:
+        return render_template('reset_password.html', error=True, error_message="Database connection failed")
+    
+    try:
+        cursor = connection.cursor()
+        
+        # Check if token is valid
+        cursor.execute('''
+            SELECT COUNT(*) FROM app_users 
+            WHERE reset_token = %s AND reset_expires > %s
+        ''', (token, datetime.now()))
+        
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            return render_template('reset_password.html', error=True, error_message="This password reset link is invalid or has expired.")
+        
+        return render_template('reset_password.html', token=token)
+        
+    except Exception as e:
+        logger.error(f"Error verifying reset token: {str(e)}")
+        return render_template('reset_password.html', error=True, error_message="An error occurred while verifying the reset link.")
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route for logout
+@app.route('/user_logout')
+def user_logout():
+    # Clear session
+    session.pop('user_id', None)
+    session.pop('email', None)
+    session.pop('name', None)
+    
+    # Create response with redirect
+    response = make_response(redirect(url_for('index')))
+    
+    # Clear auth cookie
+    response.delete_cookie('auth_token')
+    
+    return response
 
 # Route to clear conversation history
 @app.route('/clear_conversation', methods=['POST'])
@@ -590,6 +1620,7 @@ def clear_conversation():
 def get_response():
     data = request.json
     user_prompt = data.get('prompt', '')
+    chat_id = data.get('chat_id')  # New parameter for chat history
     is_direct_document_request = data.get('isDirectDocumentRequest', False)
     contains_document_type = data.get('containsDocumentType', False)
     contains_document_word = data.get('containsDocumentWord', False)
@@ -601,11 +1632,15 @@ def get_response():
         return jsonify({"error": "Prompt is required"}), 400
 
     try:
+        # Get user ID if logged in
+        user_id = session.get('user_id')
+        is_logged_in = is_user_logged_in()
+        
         # Check for admin authentication but have AI respond naturally
         parts = user_prompt.split()
         if len(parts) == 2 and parts[0] == ADMIN_KEY and parts[1] == ADMIN_PASS:
             # Log admin access attempt
-            log_conversation(user_prompt, "I understand you're asking about administrative access. Let me check that for you.")
+            log_conversation(user_prompt, "I understand you're asking about administrative access. Let me check that for you.", user_id)
             session['admin_authenticated'] = True
             return jsonify({"response": "ADMIN_AUTHENTICATED"})
         
@@ -676,10 +1711,14 @@ def get_response():
                         </div>
                         """
                     
-                    # Add to conversation history
-                    manage_conversation_history(user_prompt, response_text)
+                    # Save to chat history if chat_id is provided and user is logged in
+                    if chat_id and user_id:
+                        save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+                    else:
+                        # Add to session-based conversation history
+                        manage_conversation_history(user_prompt, response_text)
                     
-                    log_conversation(user_prompt, response_text)
+                    log_conversation(user_prompt, response_text, user_id)
                     return jsonify({"response": response_text})
                 else:
                     response_text = f"""
@@ -690,10 +1729,14 @@ def get_response():
                     </div>
                     """
                     
-                    # Add to conversation history
-                    manage_conversation_history(user_prompt, response_text)
+                    # Save to chat history if chat_id is provided and user is logged in
+                    if chat_id and user_id:
+                        save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+                    else:
+                        # Add to session-based conversation history
+                        manage_conversation_history(user_prompt, response_text)
                     
-                    log_conversation(user_prompt, response_text)
+                    log_conversation(user_prompt, response_text, user_id)
                     return jsonify({"response": response_text})
         
         # Check if this is a general document inquiry without specifying a type
@@ -713,11 +1756,17 @@ def get_response():
             <li>Item 2</li>
             </ul>
             
+            Answer The user if they ask in English and tagalog.
+            If users ask in ilocano or zambal respond accordingly but still with respect.
             If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
             If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
             
-            # Add conversation history to the context
-            context += get_conversation_history_context()
+            # Add conversation history from the specific chat if available
+            if chat_id and user_id:
+                context += get_chat_history_context(chat_id, user_id)
+            else:
+                # Otherwise use session-based conversation history
+                context += get_conversation_history_context()
             
             context += f"\nUser: {user_prompt}\nBAAC: "
 
@@ -733,11 +1782,15 @@ def get_response():
             </div>
             """
 
-            # Add to conversation history
-            manage_conversation_history(user_prompt, response_text)
+            # Save to chat history if chat_id is provided and user is logged in
+            if chat_id and user_id:
+                save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+            else:
+                # Add to session-based conversation history
+                manage_conversation_history(user_prompt, response_text)
             
             # Log the conversation
-            log_conversation(user_prompt, response_text)
+            log_conversation(user_prompt, response_text, user_id)
             
             # Return the AI response along with a suggestion for all document types
             return jsonify({
@@ -756,7 +1809,33 @@ def get_response():
                 requested_document = detect_document_type(user_prompt)
             
             if requested_document:
-                # Return document type to trigger form display on frontend
+                # Check if user is logged in
+                if not is_logged_in:
+                    # User is not logged in, return a response with login/signup buttons
+                    response_text = f"""
+                    <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                        <p>I'd be happy to help you request a {requested_document.title()}. However, you need to be logged in to submit document requests.</p>
+                        <div class="auth-buttons-container" style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button onclick="window.location.href='/login'" class="auth-button login-button" style="background-color: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">Login</button>
+                            <button onclick="window.location.href='/register'" class="auth-button register-button" style="background-color: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">Sign Up</button>
+                        </div>
+                        <p style="margin-top: 10px; font-size: 0.9em; color: #666;">Creating an account allows you to track the status of your document requests and access your request history.</p>
+                    </div>
+                    """
+                    
+                    # Add to session-based conversation history
+                    manage_conversation_history(user_prompt, response_text)
+                    
+                    # Log the conversation
+                    log_conversation(user_prompt, response_text, None)
+                    
+                    return jsonify({
+                        "response": response_text,
+                        "requiresAuth": True,
+                        "documentType": requested_document
+                    })
+                
+                # User is logged in, proceed with document request
                 document_title = requested_document.title()
                 log_document_request(document_title)
                 
@@ -767,8 +1846,12 @@ def get_response():
                 </div>
                 """
                 
-                # Add to conversation history
-                manage_conversation_history(user_prompt, response_text)
+                # Save to chat history if chat_id is provided and user is logged in
+                if chat_id and user_id:
+                    save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+                else:
+                    # Add to session-based conversation history
+                    manage_conversation_history(user_prompt, response_text)
                 
                 return jsonify({
                     "response": response_text,
@@ -802,8 +1885,12 @@ def get_response():
             If the user is asking about population or demographics, provide the relevant information from the population data.
             """
             
-            # Add conversation history to the context
-            context += get_conversation_history_context()
+            # Add conversation history from the specific chat if available
+            if chat_id and user_id:
+                context += get_chat_history_context(chat_id, user_id)
+            else:
+                # Otherwise use session-based conversation history
+                context += get_conversation_history_context()
             
             context += f"\nUser: {user_prompt}\nBAAC:"
             
@@ -819,11 +1906,15 @@ def get_response():
             </div>
             """
             
-            # Add to conversation history
-            manage_conversation_history(user_prompt, response_text)
+            # Save to chat history if chat_id is provided and user is logged in
+            if chat_id and user_id:
+                save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+            else:
+                # Add to session-based conversation history
+                manage_conversation_history(user_prompt, response_text)
             
             # Log the conversation
-            log_conversation(user_prompt, response_text)
+            log_conversation(user_prompt, response_text, user_id)
             
             return jsonify({"response": response_text})
         
@@ -832,7 +1923,6 @@ def get_response():
         Always provide helpful and informative responses. Format your response in a clear and professional manner.
         You are a large language model trained by Students from President Ramon Magsaysay State University (PRMSU)
         You are a pre existing model that was trained by students as BAAC (Barangay Amungan Assistant Chatbot) to be able to assist residents and staff of the barangay
-        You are a pre existing model from hugging face
         IMPORTANT: Use HTML formatting for lists and structured content. For lists, use <ul> and <li> tags instead of asterisks or bullet points.
         For example, instead of:
         * Item 1
@@ -844,6 +1934,9 @@ def get_response():
         <li>Item 2</li>
         </ul>
         
+        IMPORTANT: You will primarily use English or Tagalog Based on the user's question or prompt.
+        Avoid sending the word "html" since it is somehow counts as error?
+        Avoid sending ```html as response
         If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
         If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
         
@@ -854,8 +1947,12 @@ def get_response():
         {BARANGAY_OFFICIALS_INFO}
         """
         
-        # Add conversation history to the context
-        context += get_conversation_history_context()
+        # Add conversation history from the specific chat if available
+        if chat_id and user_id:
+            context += get_chat_history_context(chat_id, user_id)
+        else:
+            # Otherwise use session-based conversation history
+            context += get_conversation_history_context()
         
         context += f"\nUser: {user_prompt}\nBAAC: "
 
@@ -871,8 +1968,12 @@ def get_response():
         </div>
         """
 
-        # Add to conversation history
-        manage_conversation_history(user_prompt, response_text)
+        # Save to chat history if chat_id is provided and user is logged in
+        if chat_id and user_id:
+            save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+        else:
+            # Add to session-based conversation history
+            manage_conversation_history(user_prompt, response_text)
 
         # Check if we should suggest a form based on the AI response and user query
         result = {
@@ -894,11 +1995,17 @@ def get_response():
                     "indigency" in response_lower or 
                     "residency" in response_lower):
                     
-                    result["suggestForm"] = True
-                    result["formType"] = doc_type
+                    # Check if user is logged in before suggesting the form
+                    if is_logged_in:
+                        result["suggestForm"] = True
+                        result["formType"] = doc_type
+                    else:
+                        # User is not logged in, suggest login/signup
+                        result["suggestAuth"] = True
+                        result["documentType"] = doc_type
 
         # Log the conversation
-        log_conversation(user_prompt, response_text)
+        log_conversation(user_prompt, response_text, user_id)
 
         return jsonify(result)
 
@@ -906,95 +2013,70 @@ def get_response():
         logger.error(f"Error in get_response: {str(e)}")
         return jsonify({"error": f"An error occurred while processing the request: {str(e)}"}), 500
 
-# Route to handle document form submissions
+# Route to submit document requests
 @app.route('/submit_document', methods=['POST'])
+@auth_required
 def submit_document():
+    data = request.json
+    user_id = session.get('user_id')
+    
+    document_type = data.get('documentType')
+    date = data.get('date')
+    name = data.get('name')
+    purok = data.get('purok')
+    purpose = data.get('purpose')
+    copies = data.get('copies', 1)
+    
+    if not all([document_type, date, name, purok, purpose]):
+        return jsonify({"error": "All fields are required"}), 400
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
     try:
-        form_data = request.json
-        document_type = form_data.get('documentType')
+        cursor = connection.cursor()
         
-        if not document_type:
-            return jsonify({"error": "Document type is required"}), 400
-            
-        # Store document request in database
-        connection = get_connection()
-        if connection is None:
-            return jsonify({"error": "Database connection failed"}), 500
-            
-        try:
-            cursor = connection.cursor()
-            
-            # Different fields based on document type
-            if document_type in ["barangay clearance", "barangay residency"]:
-                query = """
-                INSERT INTO document_submissions 
-                (document_type, request_date, name, purok, purpose, submission_date, status)
-                VALUES (%s, %s, %s, %s, %s, NOW(), 'Pending')
-                RETURNING id
-                """
-                values = (
-                    document_type,
-                    form_data.get('date'),
-                    form_data.get('name'),
-                    form_data.get('purok'),
-                    form_data.get('purpose')
-                )
-            elif document_type == "barangay indigency":
-                query = """
-                INSERT INTO document_submissions 
-                (document_type, request_date, name, purok, purpose, copies, submission_date, status)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW(), 'Pending')
-                RETURNING id
-                """
-                values = (
-                    document_type,
-                    form_data.get('date'),
-                    form_data.get('name'),
-                    form_data.get('purok'),
-                    form_data.get('purpose'),
-                    form_data.get('copies')
-                )
-            else:
-                return jsonify({"error": "Invalid document type"}), 400
-                
-            cursor.execute(query, values)
-            # Get the ID of the submitted document using RETURNING in PostgreSQL
-            submission_id = cursor.fetchone()[0]
-            connection.commit()
-            
-            response_text = f"""
-            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                <p>Thank you! Your {document_type.title()} request has been submitted successfully.</p>
-                <p>Your request reference number is: <strong>REF-{submission_id}</strong></p>
-                <p>Please keep this reference number to check the status of your request later.</p>
-                <p>You can ask me anytime about the status of your request by providing this reference number.</p>
-            </div>
-            """
-            
-            # Add to conversation history
-            user_input = f"I submitted a request for {document_type}"
-            manage_conversation_history(user_input, response_text)
-            
-            # Log the conversation
-            log_conversation(f"Document submission: {document_type}", response_text)
-            
-            return jsonify({
-                "success": True,
-                "response": response_text,
-                "referenceNumber": f"REF-{submission_id}"
-            })
-            
-        except Exception as e:
-            logger.error(f"Error submitting document: {e}")
-            connection.rollback()
-            return jsonify({"error": "Failed to submit document request"}), 500
-        finally:
-            cursor.close()
-            return_connection(connection)
-                
+        # Insert document request
+        query = """
+        INSERT INTO document_submissions (user_id, document_type, request_date, name, purok, purpose, copies, status, submission_date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', CURRENT_TIMESTAMP)
+        RETURNING id
+        """
+        values = (user_id, document_type, date, name, purok, purpose, copies)
+        cursor.execute(query, values)
+        
+        document_id = cursor.fetchone()[0]
+        connection.commit()
+        
+        # Generate reference number
+        reference_number = f"REF-{document_id}"
+        
+        # Create success response
+        response_text = f"""
+        <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+            <p><strong>Document Request Submitted Successfully!</strong></p>
+            <p>Your request for a <strong>{document_type.title()}</strong> has been submitted and is now being processed.</p>
+            <p><strong>Reference Number:</strong> {reference_number}</p>
+            <p>Please save this reference number for tracking your request status.</p>
+            <p>You can check the status of your request by asking me about reference number {reference_number}.</p>
+            <p>Processing time is typically 3-5 business days. You will be notified when your document is ready for pickup.</p>
+        </div>
+        """
+        
+        return jsonify({
+            "success": True,
+            "response": response_text,
+            "reference_number": reference_number
+        })
+        
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({"error": f"An error occurred while processing the request: {str(e)}"}), 500
+        logger.error(f"Error submitting document: {e}")
+        connection.rollback()
+        return jsonify({"error": "Failed to submit document request"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
 
 # Route for admin page
 @app.route('/admin')
@@ -1020,19 +2102,22 @@ def admin_document_requests():
         cursor = connection.cursor()
         query = """
         SELECT 
-            id, 
-            document_type, 
-            request_date, 
-            name, 
-            purok, 
-            purpose, 
-            copies, 
-            submission_date, 
-            status, 
-            pickup_date, 
-            notes
-        FROM document_submissions
-        ORDER BY submission_date DESC
+            ds.id, 
+            ds.document_type, 
+            ds.request_date, 
+            ds.name, 
+            ds.purok, 
+            ds.purpose, 
+            ds.copies, 
+            ds.submission_date, 
+            ds.status, 
+            ds.pickup_date, 
+            ds.notes,
+            au.name as user_name,
+            au.email as user_email
+        FROM document_submissions ds
+        LEFT JOIN app_users au ON ds.user_id = au.id
+        ORDER BY ds.submission_date DESC
         """
         cursor.execute(query)
         
@@ -1106,6 +2191,15 @@ def update_document_status():
         cursor.close()
         return_connection(connection)
 
+# Route for checking if the user is logged in or not
+@app.route('/api/user-status')
+def user_status():
+    return jsonify({
+        'logged_in': is_user_logged_in(),
+        'user_id': session.get('user_id'),
+        'current_chat_id': session.get('current_chat_id')
+    })
+
 # Route for getting AI report
 @app.route('/ai_report')
 def ai_report():
@@ -1168,7 +2262,7 @@ def admin_stats():
         # Get last 7 days of website visits
         cursor.execute("SELECT visit_date, visit_count FROM website_visits ORDER BY visit_date DESC LIMIT 7")
         visits_rows = cursor.fetchall()
-        visits_data = [{"visit_date": row[0], "visit_count": row[1]} for row in visits_rows]
+        visits_data = [{"visit_date": row[0].strftime('%Y-%m-%d'), "visit_count": row[1]} for row in visits_rows]
 
         # Get last 7 days of document requests
         cursor.execute("""
@@ -1179,7 +2273,7 @@ def admin_stats():
         LIMIT 7
         """)
         requests_rows = cursor.fetchall()
-        requests_data = [{"request_date": row[0], "total_requests": row[1]} for row in requests_rows]
+        requests_data = [{"request_date": row[0].strftime('%Y-%m-%d'), "total_requests": row[1]} for row in requests_rows]
 
         # Get document requests by type
         cursor.execute("""
@@ -1202,13 +2296,33 @@ def admin_stats():
         status_rows = cursor.fetchall()
         status_data = [{"status": row[0], "count": row[1]} for row in status_rows]
 
+        # Get registered users count
+        cursor.execute("SELECT COUNT(*) FROM app_users")
+        users_count = cursor.fetchone()[0]
+
+        # Get users by authentication method
+        cursor.execute("""
+        SELECT 
+            CASE 
+                WHEN oauth_provider IS NOT NULL THEN oauth_provider
+                ELSE 'email'
+            END as auth_method,
+            COUNT(*) as count
+        FROM app_users
+        GROUP BY auth_method
+        """)
+        auth_method_rows = cursor.fetchall()
+        auth_method_data = [{"auth_method": row[0], "count": row[1]} for row in auth_method_rows]
+
         return jsonify({
             "today_visits": today_visits,
             "today_requests": today_requests,
             "visits_data": visits_data,
             "requests_data": requests_data,
             "document_types_data": document_types_data,
-            "status_data": status_data
+            "status_data": status_data,
+            "users_count": users_count,
+            "auth_method_data": auth_method_data
         })
     except Exception as e:
         logger.error(f"Error fetching admin stats: {e}")
@@ -1377,6 +2491,23 @@ def custom_report():
             if len(query) > 5 and ADMIN_KEY not in query and ADMIN_PASS not in query:
                 top_queries.append({"query": query, "count": count})
         
+        # Get user registration data for the date range
+        cursor.execute("""
+        SELECT DATE(created_at) as reg_date, COUNT(*) as count
+        FROM app_users
+        WHERE created_at::date BETWEEN %s AND %s
+        GROUP BY reg_date
+        ORDER BY reg_date
+        """, (start_date, end_date))
+        
+        user_reg_data = []
+        total_new_users = 0
+        for row in cursor.fetchall():
+            reg_date = row[0].strftime('%Y-%m-%d')
+            count = row[1]
+            total_new_users += count
+            user_reg_data.append({"reg_date": reg_date, "count": count})
+        
         # Generate AI insights based on the data
         ai_insights = generate_ai_insights(
             start_date, 
@@ -1392,15 +2523,425 @@ def custom_report():
             "totalVisits": total_visits,
             "totalRequests": total_requests,
             "totalDocuments": total_documents,
+            "totalNewUsers": total_new_users,
             "visitsData": visits_data,
             "documentTypesData": document_types_data,
             "statusData": status_data,
             "topQueries": top_queries,
+            "userRegData": user_reg_data,
             "aiInsights": ai_insights
         })
     except Exception as e:
         logger.error(f"Error generating custom report: {e}")
         return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to get user profile
+@app.route('/user/profile')
+@auth_required
+def user_profile():
+    user_id = session.get('user_id')
+    user = get_user_by_id(user_id)
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    # Get user's document requests
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = """
+        SELECT id, document_type, request_date, submission_date, status
+        FROM document_submissions
+        WHERE user_id = %s
+        ORDER BY submission_date DESC
+        """
+        cursor.execute(query, (user_id,))
+        
+        # Convert to dictionary format
+        document_requests = []
+        for row in cursor.fetchall():
+            doc = dict(row)
+            # Format dates for JSON
+            if doc.get('request_date'):
+                doc['request_date'] = doc['request_date'].strftime('%Y-%m-%d')
+            if doc.get('submission_date'):
+                doc['submission_date'] = doc['submission_date'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Add reference number format
+            doc['reference_number'] = f"REF-{doc['id']}"
+            
+            document_requests.append(doc)
+        
+        # Remove sensitive information
+        user.pop('password_hash', None)
+        
+        return jsonify({
+            "user": user,
+            "document_requests": document_requests
+        })
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {e}")
+        return jsonify({"error": "Failed to fetch user profile"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to update user profile
+@app.route('/user/update_profile', methods=['POST'])
+@auth_required
+def update_profile():
+    user_id = session.get('user_id')
+    data = request.json
+    
+    name = data.get('name')
+    
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        query = """
+        UPDATE app_users
+        SET name = %s
+        WHERE id = %s
+        """
+        cursor.execute(query, (name, user_id))
+        connection.commit()
+        
+        # Update session
+        session['name'] = name
+        
+        return jsonify({"success": True, "message": "Profile updated successfully"})
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        connection.rollback()
+        return jsonify({"error": "Failed to update profile"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to change password
+@app.route('/user/change_password', methods=['POST'])
+@auth_required
+def change_password():
+    user_id = session.get('user_id')
+    data = request.json
+    
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    
+    if not current_password or not new_password:
+        return jsonify({"error": "Current password and new password are required"}), 400
+    
+    # Get user
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    # Check if user has a password (might be OAuth user)
+    if not user.get('password_hash'):
+        return jsonify({"error": "Cannot change password for OAuth users"}), 400
+    
+    # Verify current password
+    if not verify_password(user['password_hash'], current_password):
+        return jsonify({"error": "Current password is incorrect"}), 400
+    
+    # Hash new password
+    password_hash = hash_password(new_password)
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        query = """
+        UPDATE app_users
+        SET password_hash = %s
+        WHERE id = %s
+        """
+        cursor.execute(query, (password_hash, user_id))
+        connection.commit()
+        
+        return jsonify({"success": True, "message": "Password changed successfully"})
+    except Exception as e:
+        logger.error(f"Error changing password: {e}")
+        connection.rollback()
+        return jsonify({"error": "Failed to change password"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# New routes for chat history feature
+
+# Route to get all chat histories for a user
+@app.route('/user/chats')
+@auth_required
+def get_user_chats_route():
+    user_id = session.get('user_id')
+    
+    # Log the request for debugging
+    logger.info(f"Getting all chats for user {user_id}")
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = """
+        SELECT id, title, created_at, updated_at
+        FROM chat_histories
+        WHERE user_id = %s AND is_active = TRUE
+        ORDER BY updated_at DESC
+        """
+        cursor.execute(query, (user_id,))
+        
+        chats = []
+        for row in cursor.fetchall():
+            chat = dict(row)
+            # Format dates for JSON
+            if chat.get('created_at'):
+                chat['created_at'] = chat['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            if chat.get('updated_at'):
+                chat['updated_at'] = chat['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            chats.append(chat)
+        
+        # Include visibility state in the response
+        visibility = session.get('chat_history_visible', True)
+        
+        # Log success
+        logger.info(f"Successfully retrieved {len(chats)} chats for user {user_id}")
+        
+        return jsonify({
+            "success": True,
+            "chats": chats,
+            "visible": visibility
+        })
+    except Exception as e:
+        logger.error(f"Error fetching user chats: {e}")
+        return jsonify({"error": f"Failed to fetch chats: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to create a new chat
+@app.route('/user/chats/new', methods=['POST'])
+@auth_required
+def create_new_chat():
+    user_id = session.get('user_id')
+    data = request.json
+    title = data.get('title', 'New Chat')
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        query = """
+        INSERT INTO chat_histories (user_id, title)
+        VALUES (%s, %s)
+        RETURNING id
+        """
+        cursor.execute(query, (user_id, title))
+        chat_id = cursor.fetchone()[0]
+        connection.commit()
+        
+        return jsonify({
+            "success": True, 
+            "chat_id": chat_id,
+            "title": title
+        })
+    except Exception as e:
+        logger.error(f"Error creating new chat: {e}")
+        connection.rollback()
+        return jsonify({"error": "Failed to create new chat"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to rename a chat
+@app.route('/user/chats/<int:chat_id>/rename', methods=['POST'])
+@auth_required
+def rename_chat(chat_id):
+    user_id = session.get('user_id')
+    data = request.json
+    new_title = data.get('title')
+    
+    if not new_title:
+        return jsonify({"error": "Title is required"}), 400
+    
+    # Log the request for debugging
+    logger.info(f"Renaming chat {chat_id} to '{new_title}' for user {user_id}")
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return jsonify({"error": "Chat not found or access denied"}), 404
+        
+        # Update the chat title
+        query = """
+        UPDATE chat_histories
+        SET title = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(query, (new_title, chat_id, user_id))
+        connection.commit()
+        
+        # Log success
+        logger.info(f"Successfully renamed chat {chat_id} to '{new_title}'")
+        
+        return jsonify({
+            "success": True,
+            "message": "Chat renamed successfully",
+            "chat_id": chat_id,
+            "title": new_title
+        })
+    except Exception as e:
+        logger.error(f"Error renaming chat: {e}")
+        connection.rollback()
+        return jsonify({"error": f"Failed to rename chat: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to delete a chat
+@app.route('/user/chats/<int:chat_id>/delete', methods=['POST'])
+@auth_required
+def delete_chat_route(chat_id):
+    user_id = session.get('user_id')
+    
+    # Log the request for debugging
+    logger.info(f"Deleting chat {chat_id} for user {user_id}")
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*) FROM chat_histories
+        WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return jsonify({"error": "Chat not found or access denied"}), 404
+        
+        # Delete the chat and its messages (relying on CASCADE)
+        query = """
+        DELETE FROM chat_histories
+        WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(query, (chat_id, user_id))
+        connection.commit()
+        
+        # Log success
+        logger.info(f"Successfully deleted chat {chat_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Chat deleted successfully",
+            "chat_id": chat_id
+        })
+    except Exception as e:
+        logger.error(f"Error deleting chat: {e}")
+        connection.rollback()
+        return jsonify({"error": f"Failed to delete chat: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+# Route to get chat messages
+@app.route('/user/chats/<int:chat_id>/messages')
+@auth_required
+def get_chat_messages_route(chat_id):
+    user_id = session.get('user_id')
+    
+    # Log the request for debugging
+    logger.info(f"Getting messages for chat {chat_id} for user {user_id}")
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = connection.cursor()
+        # First verify the chat belongs to the user
+        verify_query = """
+        SELECT COUNT(*), title FROM chat_histories
+        WHERE id = %s AND user_id = %s AND is_active = TRUE
+        GROUP BY title
+        """
+        cursor.execute(verify_query, (chat_id, user_id))
+        result = cursor.fetchone()
+        
+        if not result or result[0] == 0:
+            logger.error(f"Chat {chat_id} not found or does not belong to user {user_id}")
+            return jsonify({"error": "Chat not found or access denied"}), 404
+        
+        chat_title = result[1]
+        
+        # Get the chat messages
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = """
+        SELECT id, is_user, message, timestamp
+        FROM chat_messages
+        WHERE chat_id = %s
+        ORDER BY timestamp ASC
+        """
+        cursor.execute(query, (chat_id,))
+        
+        messages = []
+        for row in cursor.fetchall():
+            message = dict(row)
+            # Format dates for JSON
+            if message.get('timestamp'):
+                message['timestamp'] = message['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            messages.append(message)
+        
+        # Log success
+        logger.info(f"Successfully retrieved {len(messages)} messages for chat {chat_id}")
+        
+        return jsonify({
+            "success": True,
+            "chat_id": chat_id,
+            "title": chat_title,
+            "messages": messages
+        })
+    except Exception as e:
+        logger.error(f"Error fetching chat messages: {e}")
+        return jsonify({"error": f"Failed to fetch chat messages: {str(e)}"}), 500
     finally:
         cursor.close()
         return_connection(connection)
@@ -1483,6 +3024,8 @@ def db_diagnostic():
 # Call this function after initializing the database connection
 # Add this line after creating the connection_pool
 load_admin_credentials()
+create_chat_history_tables()
+update_user_table_for_verification()
 
 # Use PORT environment variable provided by Render
 port = int(os.getenv("PORT", 8000))
