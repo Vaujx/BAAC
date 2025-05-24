@@ -18,11 +18,9 @@ gunicorn==21.2.0
 # Date and Time
 pytz==2023.3
 
-# Logging
-logging==0.4.9.6
-
 # Security
 itsdangerous==2.1.2
+PyJWT==2.8.0  # Add JWT support
 
 # HTTP
 requests==2.31.0
