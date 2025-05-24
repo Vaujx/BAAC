@@ -21,6 +21,7 @@ pytz==2023.3
 # Security
 itsdangerous==2.1.2
 PyJWT==2.8.0  # Add JWT support
+bcrypt==4.0.1  # Password hashing support
 
 # HTTP
 requests==2.31.0
