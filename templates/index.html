@@ -7,71 +7,644 @@
     <link rel="icon" href="{{ url_for('static', filename='/images/logo.png') }}" type="image/jpeg">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* Enhanced close button styles */
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            color: #666;
+            width: 36px;
+            height: 36px;
+            position: relative;
+        }
+
+        .close-btn:hover {
+            background-color: #f5f5f5;
+            color: #e53935;
+            transform: translateX(-2px);
+        }
+
+        .close-btn:active {
+            transform: translateX(-1px) scale(0.95);
+        }
+
+        .close-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .close-btn:hover svg {
+            transform: translateX(-1px);
+        }
+
+        /* Modal header improvements */
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e0e0e0;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        }
+
+        .modal-header.with-back-btn {
+            justify-content: flex-start;
+            gap: 15px;
+        }
+
+        .modal-header.with-back-btn h2 {
+            flex: 1;
+            text-align: center;
+            margin-right: 36px; /* Compensate for back button width */
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        /* Enhanced document table styles */
+        .documents-container {
+            padding: 24px;
+        }
+
+        .documents-header {
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .documents-header h3 {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .documents-header p {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .document-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+
+        .document-table thead {
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            color: white;
+        }
+
+        .document-table thead th {
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .document-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+
+        .document-table tbody tr:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .document-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .document-table tbody td {
+            padding: 18px 20px;
+            font-size: 14px;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .document-table tbody td:first-child {
+            font-weight: 600;
+            color: #e53935;
+        }
+
+        /* Enhanced status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-pending::before {
+            background: #f39c12;
+            animation: pulse 2s infinite;
+        }
+
+        .status-approved {
+            background: linear-gradient(135deg, #d4edda 0%, #a8e6cf 100%);
+            color: #155724;
+            border: 1px solid #a8e6cf;
+        }
+
+        .status-approved::before {
+            background: #27ae60;
+        }
+
+        .status-rejected {
+            background: linear-gradient(135deg, #f8d7da 0%, #ff7675 100%);
+            color: #721c24;
+            border: 1px solid #ff7675;
+        }
+
+        .status-rejected::before {
+            background: #e74c3c;
+        }
+
+        .status-processing {
+            background: linear-gradient(135deg, #d1ecf1 0%, #74b9ff 100%);
+            color: #0c5460;
+            border: 1px solid #74b9ff;
+        }
+
+        .status-processing::before {
+            background: #0984e3;
+            animation: pulse 2s infinite;
+        }
+
+        .status-ready {
+            background: linear-gradient(135deg, #d4edda 0%, #00b894 100%);
+            color: #155724;
+            border: 1px solid #00b894;
+        }
+
+        .status-ready::before {
+            background: #00b894;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Document type icons */
+        .document-type {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .document-type::before {
+            content: '📄';
+            font-size: 16px;
+        }
+
+        /* Empty state styling */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+            line-height: 1.6;
+            max-width: 400px;
+            margin: 0 auto 24px;
+        }
+
+        .empty-state-action {
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .empty-state-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.4);
+        }
+
+        /* Loading state */
+        .loading-documents {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #e53935;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .document-table {
+                font-size: 12px;
+            }
+
+            .document-table thead th,
+            .document-table tbody td {
+                padding: 12px 8px;
+            }
+
+            .status-badge {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+
+            .documents-container {
+                padding: 16px;
+            }
+        }
+
+        /* Add subtle animation to modals */
+        .modal {
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Document stats */
+        .document-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #e53935;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #e53935;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
 </head>
-<body>
+<body class="{% if user %}user-logged-in{% endif %}">
     <div id="terms-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
             <h2>Terms and Conditions</h2>
         </div>
         <div class="modal-body">
+            <p style="font-weight: bold; color: #004085; background-color: #cce5ff; padding: 10px; border-left: 5px solid #004085;">
+                This service complies with the <strong>Republic Act No. 10173 – Data Privacy Act of 2012</strong> and is committed to protecting your personal data in accordance with Philippine law.
+            </p>
+
             <h3>Welcome to Barangay Amungan AI Chatbot (BAAC)</h3>
-            <p>Please read these terms and conditions carefully before using our chatbot service.</p>
-            
+            <p>By using this chatbot service, you agree to the following Terms and Conditions. Please read them carefully.</p>
+
             <h4>1. Acceptance of Terms</h4>
-            <p>By accessing and using this chatbot, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.</p>
-            
+            <p>By accessing and using BAAC, you confirm that you have read, understood, and accepted these Terms and Conditions, and you agree to comply with all applicable Philippine laws and regulations.</p>
+
             <h4>2. Service Description</h4>
-            <p>BAAC is an AI-powered assistant designed to provide information about Barangay Amungan and assist with document requests. The chatbot provides information based on the data it has been trained on.</p>
-            
+            <p>BAAC is an AI-powered chatbot developed to assist residents and visitors by providing general information about Barangay Amungan and facilitating document request inquiries. Responses are generated based on available data and may not be exhaustive.</p>
+
             <h4>3. User Responsibilities</h4>
-            <p>Users are responsible for the accuracy of information provided when requesting documents. False information may result in rejection of document requests.</p>
-            
-            <h4>4. Privacy Policy</h4>
-            <p>We collect and store conversation data to improve our services. Personal information provided for document requests is used solely for processing those requests and is handled in accordance with data privacy laws.</p>
-            
-            <h4>5. Limitations</h4>
-            <p>While we strive to provide accurate information, BAAC may not always provide complete or up-to-date information. For critical matters, please verify with the Barangay Amungan office directly.</p>
-            
+            <p>Users must provide accurate and truthful information when using this service. Submitting false or misleading information may result in penalties under relevant Philippine laws and may lead to denial of services.</p>
+
+            <h4>4. Data Privacy and Use</h4>
+            <p>All personal data collected through this chatbot is handled in accordance with the <strong>Data Privacy Act of 2012 (RA 10173)</strong>. Information is collected only as needed for processing document requests or improving service performance. We do not share your personal information with unauthorized third parties.</p>
+
+            <h4>5. Limitations and Disclaimers</h4>
+            <p>BAAC is intended to assist with basic information and should not be relied upon for official or legal advice. While we strive for accuracy, information provided may be incomplete or outdated. For urgent or sensitive matters, contact the Barangay Amungan office directly.</p>
+
             <h4>6. Document Requests</h4>
-            <p>Document requests made through this chatbot are subject to verification and approval by Barangay Amungan officials. Submission of a request does not guarantee approval.</p>
-            
-            <h4>7. Changes to Terms</h4>
-            <p>We reserve the right to modify these terms at any time. Continued use of the chatbot after changes constitutes acceptance of the modified terms.</p>
+            <p>All document requests submitted via the chatbot are subject to review and verification by authorized Barangay personnel. Approval is not guaranteed, and additional documentation may be required.</p>
+
+            <h4>7. Modifications to Terms</h4>
+            <p>Barangay Amungan reserves the right to update these Terms and Conditions at any time without prior notice. Continued use of this service following any changes indicates your acceptance of the updated terms.</p>
+
+            <h4>8. Governing Law</h4>
+            <p>These Terms and Conditions shall be governed by and interpreted in accordance with the laws of the Republic of the Philippines.</p>
         </div>
         <div class="modal-footer">
             <button id="agree-button" class="agree-button">I Agree</button>
         </div>
     </div>
 </div>
- <header class="main-header">
-    <div class="logo">
-  <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="logoPattern" patternUnits="userSpaceOnUse" width="100" height="100">
-        <image href="static/images/logo.png" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" />
-      </pattern>
-    </defs>
-    <circle cx="50" cy="50" r="45" fill="url(#logoPattern)" stroke="white" stroke-width="10" />
-  </svg>
-  <h1>Brgy. Amungan AI Chatbot</h1>
-    </div>
-        
-    </header>
 
-    <div class="container">
-        <div class="chat-outer-container">
-            <div class="chat-container" id="chat-container">
-                <div id="chat-messages"></div>
+    <header class="main-header">
+        <div class="logo">
+            <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <pattern id="logoPattern" patternUnits="userSpaceOnUse" width="100" height="100">
+                        <image href="static/images/logo.png" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" />
+                    </pattern>
+                </defs>
+                <circle cx="50" cy="50" r="45" fill="url(#logoPattern)" stroke="white" stroke-width="10" />
+            </svg>
+            <h1>Brgy. Amungan AI Chatbot</h1>
+        </div>
+        
+        {% if user %}
+        <div class="user-profile">
+            <div class="user-avatar" id="userAvatarBtn">
+                {% if user.profile_pic %}
+                <img src="{{ user.profile_pic }}" alt="{{ user.name }}">
+                {% else %}
+                {{ user.name[0] }}
+                {% endif %}
+            </div>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <strong>{{ user.name }}</strong>
+                </div>
+                <div class="user-dropdown-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon"><path d="M22 17.5l-9.9 1.16-9.9-1.16a1 1 0 0 0-1.1.87v3.38a1 1 0 0 0 .9.95l10 1.15 10-1.15a1 1 0 0 0 .9-.95v-3.38a1 1 0 0 0-1.1-.87z"></path><path d="M6.9 12.5l-5.7-.7a1 1 0 0 0-1.1.87v3.38a1 1 0 0 0 .9.95l5.9.7z"></path><path d="M22.9 12.5l-5.9.7v5.2l5.9.7a1 1 0 0 0 .9-.95v-3.38a1 1 0 0 0-1.1-.87z"></path><path d="M5.9 8.5l-4.7-.57a1 1 0 0 0-1.1.87v3.38a1 1 0 0 0 .9.95l4.9.59z"></path><path d="M21.9 8.5l-4.9.59v5.18l4.9.59a1 1 0 0 0 .9-.95V9.37a1 1 0 0 0-1.1-.87z"></path><path d="M4.9 4.5l-3.7-.45a1 1 0 0 0-1.1.87v3.38a1 1 0 0 0 .9.95l3.9.47z"></path><path d="M20.9 4.5l-3.9.47v5.18l3.9.47a1 1 0 0 0 .9-.95V5.37a1 1 0 0 0-1.1-.87z"></path><path d="M10 2a2 2 0 0 0-2 2v20c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2V4a2 2 0 0 0-2-2z"></path></svg>
+                    {{ user.email }}
+                </div>
+                <div class="user-dropdown-divider"></div>
+                <div class="user-dropdown-item" id="viewProfileBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    View Profile
+                </div>
+                <div class="user-dropdown-item" id="myDocumentsBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    My Documents
+                </div>
+                <div class="user-dropdown-divider"></div>
+                <div class="user-dropdown-item" onclick="window.location.href='{{ url_for('user_logout') }}'">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    Logout
+                </div>
             </div>
         </div>
-        <div class="input-area">
-            <textarea id="prompt" placeholder="Ask about Barangay Amungan..."></textarea>
-            <button id="submit-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                </svg>
-            </button>
+        {% else %}
+        <div class="auth-links">
+            <a href="{{ url_for('login') }}" class="auth-link">Login</a>
+            <a href="{{ url_for('register') }}" class="auth-link">Register</a>
+        </div>
+        {% endif %}
+    </header>
+
+    <div class="app-container">
+        {% if user %}
+        <div class="chat-sidebar" id="chat-history-panel">
+            <div class="sidebar-header">
+                <h3>Chat History</h3>
+                <button id="newChatBtn" class="new-chat-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    New Chat
+                </button>
+            </div>
+            <div class="chat-list" id="chat-history-list">
+                <div class="loading-chats">Loading chats...</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="main-content">
+            <div class="container">
+                <div class="chat-header">
+                    {% if user %}
+                    <button id="toggleSidebarBtn" class="toggle-sidebar-btn" onclick="toggleChatHistory()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                    <div class="current-chat-title" id="currentChatTitle">New Chat</div>
+                    <div class="chat-actions">
+                        <button id="renameChatBtn" class="chat-action-btn" title="Rename Chat">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        </button>
+                        <button id="deleteChatBtn" class="chat-action-btn" title="Delete Chat">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="chat-outer-container">
+                    <div class="chat-container" id="chat-container">
+                        <div id="chat-messages"></div>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <textarea id="prompt" placeholder="Ask about Barangay Amungan..."></textarea>
+                    <button id="submit-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header with-back-btn">
+                <button class="close-btn" id="closeProfileModal" title="Go Back">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h2>User Profile</h2>
+            </div>
+            <div class="modal-body">
+                <div id="profileContent">
+                    <div class="form-group">
+                        <label for="profileName">Name</label>
+                        <input type="text" id="profileName" value="{{ user.name if user else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" value="{{ user.email if user else '' }}" disabled>
+                    </div>
+                    <button id="updateProfileBtn" class="auth-btn">Update Profile</button>
+                    
+                    {% if user and user.password_hash %}
+                    <div class="user-dropdown-divider"></div>
+                    <h3>Change Password</h3>
+                    <div class="form-group">
+                        <label for="currentPassword">Current Password</label>
+                        <input type="password" id="currentPassword">
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">New Password</label>
+                        <input type="password" id="newPassword">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm New Password</label>
+                        <input type="password" id="confirmPassword">
+                    </div>
+                    <button id="changePasswordBtn" class="auth-btn">Change Password</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Documents Modal -->
+    <div id="documentsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header with-back-btn">
+                <button class="close-btn" id="closeDocumentsModal" title="Go Back">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h2>My Document Requests</h2>
+            </div>
+            <div class="modal-body">
+                <div id="documentsContent" class="documents-container">
+                    <div class="loading-documents">
+                        <div class="loading-spinner"></div>
+                        <p>Loading your document requests...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Chat Modal -->
+    <div id="renameChatModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header with-back-btn">
+                <button class="close-btn" id="closeRenameChatModal" title="Go Back">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h2>Rename Chat</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="chatTitle">Chat Title</label>
+                    <input type="text" id="chatTitle" placeholder="Enter a title for this chat">
+                </div>
+                <button id="saveChatTitleBtn" class="auth-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Chat Confirmation Modal -->
+    <div id="deleteChatModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header with-back-btn">
+                <button class="close-btn" id="closeDeleteChatModal" title="Go Back">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h2>Delete Chat</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this chat? This action cannot be undone.</p>
+                <div class="modal-actions">
+                    <button id="cancelDeleteBtn" class="cancel-btn">Cancel</button>
+                    <button id="confirmDeleteBtn" class="delete-btn">Delete</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -120,53 +693,421 @@
                 <div class="member-image">
                     <img src="{{ url_for('static', filename='images/fajardo.jpg') }}" alt="Researcher 2">
                 </div>
-                
+            </div>
+        </div>
     </div>
-            <!--
-    <div class="team-member">
-        <div class="member-info">
-            <h3>Researcher</h3>
-        
-        </div>
-        <div class="member-image">
-            <img src="{{ url_for('static', filename='images/singh.jpg') }}" alt="Researcher 3">
-        </div>
-</div>
-            -->
    
     <footer>
-        <p> 2025 BAAC - Barangay Amungan Artificial Intelligence Chatbot. All rights reserved.</p>
+        <p>&copy; 2025 BAAC - Barangay Amungan Artificial Intelligence Chatbot. All rights reserved.</p>
     </footer>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const modal = document.getElementById('terms-modal');
-        const agreeButton = document.getElementById('agree-button');
-        
-        // Check if user has already agreed to terms
-        const hasAgreed = sessionStorage.getItem('termsAgreed');
-        
-        if (!hasAgreed) {
-            // Show the modal if user hasn't agreed
-            modal.style.display = 'block';
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('terms-modal');
+            const agreeButton = document.getElementById('agree-button');
             
-            // Disable scrolling on the body when modal is open
-            document.body.style.overflow = 'hidden';
+            // Check if user has already agreed to terms
+            const hasAgreed = sessionStorage.getItem('termsAgreed');
+            
+            if (!hasAgreed) {
+                // Show the modal if user hasn't agreed
+                modal.style.display = 'block';
+                
+                // Disable scrolling on the body when modal is open
+                document.body.style.overflow = 'hidden';
+            }
+            
+            // When user clicks agree
+            agreeButton.addEventListener('click', function() {
+                // Store that user has agreed
+                sessionStorage.setItem('termsAgreed', 'true');
+                
+                // Hide the modal
+                modal.style.display = 'none';
+                
+                // Re-enable scrolling
+                document.body.style.overflow = 'auto';
+            });
+
+            // User profile dropdown
+            const userAvatarBtn = document.getElementById('userAvatarBtn');
+            const userDropdown = document.getElementById('userDropdown');
+            
+            if (userAvatarBtn) {
+                userAvatarBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userDropdown.classList.toggle('active');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (!userAvatarBtn.contains(event.target) && !userDropdown.contains(event.target)) {
+                        userDropdown.classList.remove('active');
+                    }
+                });
+            }
+
+            // Profile modal
+            const viewProfileBtn = document.getElementById('viewProfileBtn');
+            const profileModal = document.getElementById('profileModal');
+            const closeProfileModal = document.getElementById('closeProfileModal');
+            const updateProfileBtn = document.getElementById('updateProfileBtn');
+            const changePasswordBtn = document.getElementById('changePasswordBtn');
+            
+            if (viewProfileBtn) {
+                viewProfileBtn.addEventListener('click', function() {
+                    profileModal.style.display = 'block';
+                    userDropdown.classList.remove('active');
+                });
+            }
+            
+            if (closeProfileModal) {
+                closeProfileModal.addEventListener('click', function() {
+                    profileModal.style.display = 'none';
+                });
+            }
+            
+            if (updateProfileBtn) {
+                updateProfileBtn.addEventListener('click', function() {
+                    const name = document.getElementById('profileName').value;
+                    
+                    fetch('/user/update_profile', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ name: name }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Profile updated successfully');
+                            // Reload page to reflect changes
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + (data.error || 'Failed to update profile'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error updating profile');
+                    });
+                });
+            }
+            
+            if (changePasswordBtn) {
+                changePasswordBtn.addEventListener('click', function() {
+                    const currentPassword = document.getElementById('currentPassword').value;
+                    const newPassword = document.getElementById('newPassword').value;
+                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        alert('All password fields are required');
+                        return;
+                    }
+                    
+                    if (newPassword !== confirmPassword) {
+                        alert('New passwords do not match');
+                        return;
+                    }
+                    
+                    fetch('/user/change_password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            current_password: currentPassword,
+                            new_password: newPassword
+                        }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Password changed successfully');
+                            // Clear password fields
+                            document.getElementById('currentPassword').value = '';
+                            document.getElementById('newPassword').value = '';
+                            document.getElementById('confirmPassword').value = '';
+                        } else {
+                            alert('Error: ' + (data.error || 'Failed to change password'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error changing password');
+                    });
+                });
+            }
+
+            // My Documents modal
+            const myDocumentsBtn = document.getElementById('myDocumentsBtn');
+            const documentsModal = document.getElementById('documentsModal');
+            const closeDocumentsModal = document.getElementById('closeDocumentsModal');
+            const documentsContent = document.getElementById('documentsContent');
+            
+            if (myDocumentsBtn) {
+                myDocumentsBtn.addEventListener('click', function() {
+                    documentsModal.style.display = 'block';
+                    userDropdown.classList.remove('active');
+                    
+                    // Reset content to loading state
+                    documentsContent.innerHTML = `
+                        <div class="loading-documents">
+                            <div class="loading-spinner"></div>
+                            <p>Loading your document requests...</p>
+                        </div>
+                    `;
+                    
+                    // Fetch user's document requests
+                    fetch('/user/profile')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.document_requests && data.document_requests.length > 0) {
+                                // Calculate stats
+                                const total = data.document_requests.length;
+                                const pending = data.document_requests.filter(doc => doc.status.toLowerCase() === 'pending').length;
+                                const approved = data.document_requests.filter(doc => doc.status.toLowerCase() === 'approved').length;
+                                const processing = data.document_requests.filter(doc => doc.status.toLowerCase() === 'processing').length;
+                                
+                                let html = `
+                                    <div class="documents-header">
+                                        <h3>📋 Document Request History</h3>
+                                        <p>Track the status of all your document requests</p>
+                                    </div>
+                                    
+                                    <div class="document-stats">
+                                        <div class="stat-card">
+                                            <div class="stat-number">${total}</div>
+                                            <div class="stat-label">Total Requests</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${pending}</div>
+                                            <div class="stat-label">Pending</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${approved}</div>
+                                            <div class="stat-label">Approved</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${processing}</div>
+                                            <div class="stat-label">Processing</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <table class="document-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Reference #</th>
+                                                <th>Document Type</th>
+                                                <th>Submission Date</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                `;
+                                
+                                data.document_requests.forEach(doc => {
+                                    const statusClass = doc.status.toLowerCase();
+                                    const date = new Date(doc.submission_date).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                    });
+                                    
+                                    html += `
+                                        <tr>
+                                            <td>${doc.reference_number}</td>
+                                            <td>
+                                                <div class="document-type">${doc.document_type}</div>
+                                            </td>
+                                            <td>${date}</td>
+                                            <td>
+                                                <span class="status-badge status-${statusClass}">${doc.status}</span>
+                                            </td>
+                                        </tr>
+                                    `;
+                                });
+                                
+                                html += '</tbody></table>';
+                                documentsContent.innerHTML = html;
+                            } else {
+                                documentsContent.innerHTML = `
+                                    <div class="empty-state">
+                                        <div class="empty-state-icon">📄</div>
+                                        <h3>No Document Requests Yet</h3>
+                                        <p>You haven't submitted any document requests. Start a conversation with our AI chatbot to request documents from Barangay Amungan.</p>
+                                        <button class="empty-state-action" onclick="document.getElementById('documentsModal').style.display='none'; document.getElementById('prompt').focus();">
+                                            Start Requesting Documents
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            documentsContent.innerHTML = `
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">⚠️</div>
+                                    <h3>Error Loading Documents</h3>
+                                    <p>We couldn't load your document requests at this time. Please try again later.</p>
+                                    <button class="empty-state-action" onclick="location.reload();">
+                                        Retry
+                                    </button>
+                                </div>
+                            `;
+                        });
+                });
+            }
+            
+            if (closeDocumentsModal) {
+                closeDocumentsModal.addEventListener('click', function() {
+                    documentsModal.style.display = 'none';
+                });
+            }
+
+            // Rename Chat Modal
+            const renameChatModal = document.getElementById('renameChatModal');
+            const closeRenameChatModal = document.getElementById('closeRenameChatModal');
+            
+            if (closeRenameChatModal) {
+                closeRenameChatModal.addEventListener('click', function() {
+                    renameChatModal.style.display = 'none';
+                });
+            }
+
+            // Delete Chat Modal
+            const deleteChatModal = document.getElementById('deleteChatModal');
+            const closeDeleteChatModal = document.getElementById('closeDeleteChatModal');
+            
+            if (closeDeleteChatModal) {
+                closeDeleteChatModal.addEventListener('click', function() {
+                    deleteChatModal.style.display = 'none';
+                });
+            }
+
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === profileModal) {
+                    profileModal.style.display = 'none';
+                }
+                if (event.target === documentsModal) {
+                    documentsModal.style.display = 'none';
+                }
+                if (event.target === renameChatModal) {
+                    renameChatModal.style.display = 'none';
+                }
+                if (event.target === deleteChatModal) {
+                    deleteChatModal.style.display = 'none';
+                }
+            });
+
+            // Load chat histories on page load
+            if (document.getElementById('chat-history-list')) {
+                loadChatHistories();
+            }
+        });
+
+        function toggleChatHistory() {
+    fetch('/toggle_chat_history', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const chatHistoryPanel = document.getElementById('chat-history-panel');
+            const chatContainer = document.getElementById('chat-container');
+            
+            if (data.visible) {
+                // Show chat history
+                chatHistoryPanel.style.display = 'block';
+                chatContainer.classList.remove('full-width');
+            } else {
+                // Hide chat history
+                chatHistoryPanel.style.display = 'none';
+                chatContainer.classList.add('full-width');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error toggling chat history:', error);
+    });
+}
+
+// Function to load chat histories
+function loadChatHistories() {
+    fetch('/user/chats')
+    .then(response => response.json())
+    .then(data => {
+        const chatHistoryList = document.getElementById('chat-history-list');
+        chatHistoryList.innerHTML = '';
+        
+        // Apply visibility setting from server
+        const chatHistoryPanel = document.getElementById('chat-history-panel');
+        const chatContainer = document.getElementById('chat-container');
+        
+        if (data.visible) {
+            chatHistoryPanel.style.display = 'block';
+            chatContainer.classList.remove('full-width');
+        } else {
+            chatHistoryPanel.style.display = 'none';
+            chatContainer.classList.add('full-width');
         }
         
-        // When user clicks agree
-        agreeButton.addEventListener('click', function() {
-            // Store that user has agreed
-            sessionStorage.setItem('termsAgreed', 'true');
+        // Populate chat list
+        data.chats.forEach(chat => {
+            const chatItem = document.createElement('div');
+            chatItem.className = 'chat-item';
+            chatItem.dataset.chatId = chat.id;
             
-            // Hide the modal
-            modal.style.display = 'none';
+            // Format the chat item with title and date
+            const date = new Date(chat.updated_at);
+            const formattedDate = date.toLocaleDateString();
             
-            // Re-enable scrolling
-            document.body.style.overflow = 'auto';
+            chatItem.innerHTML = `
+                <div class="chat-title">${chat.title}</div>
+                <div class="chat-date">${formattedDate}</div>
+                <div class="chat-actions">
+                    <button class="rename-chat" onclick="renameChat(${chat.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="delete-chat" onclick="deleteChat(${chat.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Add click event to load this chat
+            chatItem.addEventListener('click', function(e) {
+                if (!e.target.closest('.chat-actions')) {
+                    loadChat(chat.id);
+                }
+            });
+            
+            chatHistoryList.appendChild(chatItem);
         });
+    })
+    .catch(error => {
+        console.error('Error loading chat histories:', error);
     });
-</script>
+}
+
+// Add event listener to the toggle button
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButton = document.getElementById('toggle-chat-history');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', toggleChatHistory);
+    }
+    
+    // Load chat histories on page load
+    if (document.getElementById('chat-history-list')) {
+        loadChatHistories();
+    }
+});
+    </script>
+</body>
 </html>
