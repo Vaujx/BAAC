@@ -223,7 +223,7 @@ def is_about_geography(query):
     
     geography_terms = [
         "location", "geography", "boundary", "boundaries", "north", "south",
-        "east", "west", "mountains", "sea", "coastal", "area", "square",
+        "west", "mountains", "sea", "coastal", "area", "square",
         "kilometers", "terrain", "elevation", "hills", "land use",
         "residential", "agricultural", "commercial", "san agustin",
         "bangatalinga", "zambales mountain", "south china sea"
