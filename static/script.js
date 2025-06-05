@@ -16,9 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
   chatMessages = document.getElementById("chat-messages")
   const promptInput = document.getElementById("prompt")
   const submitButton = document.getElementById("submit-btn")
-  const formOverlay = document.createElement("div")
+  formOverlay = document.createElement("div")
 
-  // Chat history elements - FIXED: Use the correct ID from your HTML
+  // Chat history elements
   const chatSidebar = document.getElementById("chat-history-panel")
   chatList = document.getElementById("chat-history-list")
   const newChatBtn = document.getElementById("newChatBtn")
@@ -44,16 +44,32 @@ document.addEventListener("DOMContentLoaded", () => {
   formOverlay.style.display = "none"
   document.body.appendChild(formOverlay)
 
-  // List of document types
+  // Document types configuration
   const documentTypes = [
-    "barangay clearance",
-    "barangay indigency",
-    "barangay indengency",
-    "barangay indengecy",
-    "indigency",
-    "barangay residency",
-    "residency",
-    "clearance",
+    {
+      id: "barangay-clearance",
+      name: "barangay clearance",
+      displayName: "Barangay Clearance",
+      icon: "📋",
+      description: "Certificate of good moral character",
+      color: "#e53935",
+    },
+    {
+      id: "barangay-residency",
+      name: "barangay residency",
+      displayName: "Barangay Residency",
+      icon: "🏠",
+      description: "Proof of residence certificate",
+      color: "#1976d2",
+    },
+    {
+      id: "barangay-indigency",
+      name: "barangay indigency",
+      displayName: "Barangay Indigency",
+      icon: "📄",
+      description: "Financial assistance certificate",
+      color: "#388e3c",
+    },
   ]
 
   // List of interrogative words (5Ws and H)
@@ -100,7 +116,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Function to check if user is logged in
   function isUserLoggedIn() {
-    // Check multiple indicators of login status
     return (
       document.body.classList.contains("user-logged-in") ||
       document.querySelector(".user-info") !== null ||
@@ -111,41 +126,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Enhanced robust auto-scroll function
   function scrollToBottom() {
-    // Log for debugging
     console.log("Scrolling to bottom")
-    console.log("Container height:", chatContainer.clientHeight)
-    console.log("Scroll height:", chatContainer.scrollHeight)
-
-    // Force layout recalculation
     void chatContainer.offsetHeight
-
-    // Set scroll position immediately
     chatContainer.scrollTop = chatContainer.scrollHeight
 
-    // Use requestAnimationFrame for smoother scrolling
     requestAnimationFrame(() => {
       chatContainer.scrollTop = chatContainer.scrollHeight
     })
 
-    // Also try with multiple delays for reliability
     setTimeout(() => {
       chatContainer.scrollTop = chatContainer.scrollHeight
     }, 10)
 
     setTimeout(() => {
       chatContainer.scrollTop = chatContainer.scrollHeight
-      console.log("Final scroll position:", chatContainer.scrollTop)
     }, 100)
   }
 
   // Set up auto-scrolling with MutationObserver
   function setupAutoScroll() {
-    // Create a MutationObserver to watch for changes in the chat container
-    const observer = new MutationObserver((mutations) => {
+    const observer = new MutationObserver(() => {
       scrollToBottom()
     })
 
-    // Start observing the chat container for DOM changes
     observer.observe(chatMessages, {
       childList: true,
       subtree: true,
@@ -153,7 +156,6 @@ document.addEventListener("DOMContentLoaded", () => {
       attributes: true,
     })
 
-    // Also set up interval-based scrolling for a short period after content changes
     let scrollInterval
     const startScrollInterval = () => {
       clearInterval(scrollInterval)
@@ -167,7 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 100)
     }
 
-    // Watch for changes to trigger the interval-based scrolling
     const contentObserver = new MutationObserver(() => {
       startScrollInterval()
     })
@@ -177,13 +178,11 @@ document.addEventListener("DOMContentLoaded", () => {
       subtree: true,
     })
 
-    // Add resize observer to handle window resizing
     const resizeObserver = new ResizeObserver(() => {
       scrollToBottom()
     })
     resizeObserver.observe(chatContainer)
 
-    // Force scroll on image load to handle dynamic content height changes
     document.querySelectorAll("img").forEach((img) => {
       img.addEventListener("load", scrollToBottom)
     })
@@ -197,12 +196,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isUser) {
       messageDiv.textContent = content
     } else {
-      messageDiv.innerHTML = content // Use innerHTML to render the HTML formatting
+      messageDiv.innerHTML = content
     }
 
     chatMessages.appendChild(messageDiv)
-
-    // Force scroll after adding a message
     scrollToBottom()
   }
 
@@ -219,13 +216,10 @@ document.addEventListener("DOMContentLoaded", () => {
     promptInput.value = ""
     setSubmitButtonState(false)
 
-    // Check if the prompt contains a document type (more flexible detection)
-    const containsDocumentType = documentTypes.some((docType) => prompt.toLowerCase().includes(docType))
+    // Check if the prompt contains a document type
+    const containsDocumentType = documentTypes.some((docType) => prompt.toLowerCase().includes(docType.name))
 
-    // Check if the prompt contains the word "document" (for general document inquiries)
     const containsDocumentWord = prompt.toLowerCase().includes("document")
-
-    // Check if the prompt contains interrogative words
     const containsInterrogative = interrogativeWords.some((word) =>
       prompt
         .toLowerCase()
@@ -233,7 +227,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .some((w) => w === word),
     )
 
-    // Check if the prompt starts with interrogative words or phrases
     const startsWithInterrogative =
       interrogativeWords.some((word) => prompt.toLowerCase().startsWith(word)) ||
       prompt.toLowerCase().startsWith("how can") ||
@@ -243,8 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
       prompt.toLowerCase().startsWith("where can") ||
       prompt.toLowerCase().startsWith("when can")
 
-    // Determine if this is a direct document request - more lenient conditions
-    // BUT make sure it's not an interrogative question
     const isDirectDocumentRequest =
       containsDocumentType &&
       !startsWithInterrogative &&
@@ -255,23 +246,13 @@ document.addEventListener("DOMContentLoaded", () => {
         prompt.toLowerCase().includes("need") ||
         prompt.toLowerCase().startsWith("i want") ||
         prompt.toLowerCase().startsWith("i need") ||
-        // Also consider it a direct request if it just mentions the document without questions
         !containsInterrogative)
 
-    // Detect which document type was requested
     let requestedDocType = null
     if (containsDocumentType) {
-      // Find the matching document type
       for (const docType of documentTypes) {
-        if (prompt.toLowerCase().includes(docType)) {
-          // Map to one of the standard document types
-          if (docType.includes("clearance")) {
-            requestedDocType = "barangay clearance"
-          } else if (docType.includes("indeng") || docType.includes("indige") || docType === "indigency") {
-            requestedDocType = "barangay indigency"
-          } else if (docType.includes("resid") || docType === "residency") {
-            requestedDocType = "barangay residency"
-          }
+        if (prompt.toLowerCase().includes(docType.name)) {
+          requestedDocType = docType.name
           break
         }
       }
@@ -301,44 +282,32 @@ document.addEventListener("DOMContentLoaded", () => {
           const result = data.response ? data.response : data.error || "No response content found."
           addMessage(result)
 
-          // If this is the first message in a new chat, update the chat title
           if (currentChatId && chats.length > 0) {
             const currentChat = chats.find((chat) => chat.id === currentChatId)
             if (currentChat && currentChat.title === "New Chat") {
-              // Use the first few words of the user's prompt as the chat title
               const newTitle = prompt.length > 30 ? prompt.substring(0, 30) + "..." : prompt
               updateChatTitle(currentChatId, newTitle)
             }
           }
 
-          // Force scroll after adding AI response
           scrollToBottom()
 
-          // Check if we need to show a form
-          if (data.showForm && data.formType) {
-            showDocumentForm(data.formType)
-            // Force scroll after showing form
-            scrollToBottom()
+          if (data.showFormButton && data.formType) {
+            // AI provided a button to show the form
           }
 
-          // If the AI suggests a form, add a button to show it
           if (data.suggestForm && data.formType) {
             addFormSuggestionButton(data.formType)
-            // Force scroll after adding form suggestion
             scrollToBottom()
           }
 
-          // If the AI suggests all document types
           if (data.suggestAllDocuments) {
             addAllDocumentsSuggestion()
-            // Force scroll after adding document suggestions
             scrollToBottom()
           }
 
-          // If authentication is required for document request
           if (data.requiresAuth && data.documentType) {
             addAuthRequiredMessage(data.documentType)
-            // Force scroll after adding auth message
             scrollToBottom()
           }
         }
@@ -346,15 +315,12 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch((error) => {
         addMessage("Error: Unable to fetch response.")
         console.error("Error:", error)
-        // Force scroll after error message
         scrollToBottom()
       })
       .finally(() => {
         setSubmitButtonState(true)
-        // Final force scroll
         scrollToBottom()
 
-        // Refresh the chat list to update the last updated time
         if (currentChatId) {
           loadChats()
         }
@@ -366,23 +332,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const authMessage = document.createElement("div")
     authMessage.className = "auth-required-message"
     authMessage.innerHTML = `
-      <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 10px 0;">
-        <p style="margin: 0 0 10px 0; color: #856404;"><strong>Authentication Required</strong></p>
-        <p style="margin: 0 0 15px 0; color: #856404;">You need to be logged in to request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button onclick="window.location.href='/login'" style="background-color: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Login</button>
-          <button onclick="window.location.href='/register'" style="background-color: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Sign Up</button>
+      <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 8px; padding: 20px; margin: 15px 0; box-shadow: 0 4px 12px rgba(239, 83, 80, 0.15);">
+        <p style="margin: 0 0 12px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>🔐 Authentication Required</strong></p>
+        <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">You need to be logged in to request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <button onclick="window.location.href='/login'" style="background: linear-gradient(135deg, #ef5350 0%, #c62828 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 2px 8px rgba(239, 83, 80, 0.3);">🔑 Login</button>
+          <button onclick="window.location.href='/register'" style="background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); color: #c62828; border: 2px solid #ef5350; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: transform 0.2s ease;">📝 Sign Up</button>
         </div>
       </div>
     `
-
     chatMessages.appendChild(authMessage)
     scrollToBottom()
   }
 
   // Function to suggest a specific document form
   function addFormSuggestionButton(documentType) {
-    // Check if user is logged in before showing form suggestion
     if (!isUserLoggedIn()) {
       addAuthRequiredMessage(documentType)
       return
@@ -391,20 +355,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestionDiv = document.createElement("div")
     suggestionDiv.className = "form-suggestion"
     suggestionDiv.innerHTML = `
-    <p><strong>Document Request Available:</strong> I can help you request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
-    <button class="form-suggestion-btn">Open Request Form</button>
-  `
+      <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15);">
+        <p style="margin: 0 0 12px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>📋 Document Request Available</strong></p>
+        <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">I can help you request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
+        <div style="text-align: center;">
+          <button class="form-suggestion-btn" style="background: linear-gradient(135deg, #ef5350 0%, #c62828 100%); color: white; border: none; padding: 14px 28px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 12px rgba(239, 83, 80, 0.3);">📄 Open Request Form</button>
+        </div>
+      </div>
+    `
 
     const button = suggestionDiv.querySelector(".form-suggestion-btn")
     button.addEventListener("click", () => {
-      showDocumentForm(documentType)
+      showDocumentForm([documentType])
       suggestionDiv.remove()
-      // Force scroll after removing suggestion
       scrollToBottom()
     })
 
     chatMessages.appendChild(suggestionDiv)
-    // Force scroll after adding suggestion
     scrollToBottom()
   }
 
@@ -413,368 +380,574 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestionDiv = document.createElement("div")
     suggestionDiv.className = "all-documents-suggestion"
 
-    // Check if user is logged in
     const userLoggedIn = isUserLoggedIn()
 
     if (userLoggedIn) {
-      // User is logged in - show document request buttons
       suggestionDiv.innerHTML = `
-        <p><strong>Available Document Requests:</strong> I can help you request any of the following documents:</p>
-        <div class="document-buttons">
-          <button class="document-btn" data-type="barangay clearance">Barangay Clearance</button>
-          <button class="document-btn" data-type="barangay indigency">Barangay Indigency</button>
-          <button class="document-btn" data-type="barangay residency">Barangay Residency</button>
+        <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15);">
+          <p style="margin: 0 0 15px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
+          <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">I can help you request any of the following documents:</p>
+          <div class="document-buttons" style="display: flex; flex-direction: column; gap: 12px;">
+            ${documentTypes
+              .map(
+                (docType) => `
+              <button class="document-btn" data-type="${docType.name}" style="background: linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%); color: white; border: none; padding: 14px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px;">${docType.icon}</span>
+                <div style="text-align: left; flex: 1;">
+                  <div style="font-weight: 700;">${docType.displayName}</div>
+                  <div style="font-size: 12px; opacity: 0.9;">${docType.description}</div>
+                </div>
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #666; text-align: center; font-style: italic;">Click on any document to open the request form, or select multiple documents at once.</p>
         </div>
-        <p class="document-help-text">Click on any document to open its request form.</p>
       `
 
-      // Add event listeners to all buttons
       const buttons = suggestionDiv.querySelectorAll(".document-btn")
       buttons.forEach((button) => {
         button.addEventListener("click", () => {
           const docType = button.getAttribute("data-type")
-          showDocumentForm(docType)
+          showDocumentForm([docType])
           suggestionDiv.remove()
-          // Force scroll after removing suggestion
           scrollToBottom()
         })
       })
     } else {
-      // User is not logged in - show login/signup buttons
       suggestionDiv.innerHTML = `
-        <p><strong>Available Document Requests:</strong> I can help you request Barangay Clearance, Barangay Indigency, and Barangay Residency documents.</p>
-        <p style="color: #e74c3c; font-weight: bold;">However, you need to be logged in to submit document requests.</p>
-        <div class="auth-buttons-container" style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
-          <button onclick="window.location.href='/login'" class="auth-button login-button" style="background-color: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.3s;">Login</button>
-          <button onclick="window.location.href='/register'" class="auth-button register-button" style="background-color: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.3s;">Sign Up</button>
+        <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffffff 100%); border: 2px solid #ff9800; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(255, 152, 0, 0.15);">
+          <p style="margin: 0 0 12px 0; color: #e65100; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
+          <p style="margin: 0 0 12px 0; color: #f57c00; line-height: 1.5;">I can help you request Barangay Clearance, Barangay Indigency, and Barangay Residency documents.</p>
+          <p style="color: #d32f2f; font-weight: 600; margin: 0 0 20px 0; font-size: 15px;">⚠️ However, you need to be logged in to submit document requests.</p>
+          <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <button onclick="window.location.href='/login'" style="background: linear-gradient(135deg, #ef5350 0%, #c62828 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">🔑 Login</button>
+            <button onclick="window.location.href='/register'" style="background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); color: #c62828; border: 2px solid #ef5350; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">📝 Sign Up</button>
+          </div>
         </div>
-        <p style="margin-top: 10px; font-size: 0.9em; color: #666; text-align: center;">Creating an account allows you to track the status of your document requests and access your request history.</p>
       `
     }
 
     chatMessages.appendChild(suggestionDiv)
-    // Force scroll after adding suggestions
     scrollToBottom()
   }
 
- function showDocumentForm(documentType) {
-    // Check if user is logged in before showing the form
+  // Enhanced document form with multiple document selection - FIXED SUBMIT BUTTON ISSUE
+  function showDocumentForm(preselectedTypes = []) {
     if (!isUserLoggedIn()) {
-        addAuthRequiredMessage(documentType);
-        return;
+      addAuthRequiredMessage(preselectedTypes[0] || "documents")
+      return
     }
 
-    // Clear any existing form
-    formOverlay.innerHTML = "";
+    formOverlay.innerHTML = ""
 
-    // Create form container
-    const formContainer = document.createElement("div");
-    formContainer.className = "document-form-container";
+    const formContainer = document.createElement("div")
+    formContainer.className = "enhanced-document-form-container"
+    formContainer.style.cssText = `
+      background: white;
+      border-radius: 20px;
+      max-width: 1000px;
+      width: 95%;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+      position: relative;
+      display: flex;
+      border: 3px solid #ffcdd2;
+    `
 
-    // Create form title
-    const formTitle = document.createElement("h2");
-    formTitle.textContent = "Document Request Form";
+    // Create document selector sidebar
+    const sidebarContainer = document.createElement("div")
+    sidebarContainer.className = "document-selector-sidebar"
+    sidebarContainer.style.cssText = `
+      width: 300px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-right: 2px solid #dee2e6;
+      padding: 0;
+      overflow-y: auto;
+      position: relative;
+    `
 
-    // Create document type selector section
-    const selectorSection = document.createElement("div");
-    selectorSection.className = "document-selector-section";
-    selectorSection.innerHTML = `
-        <h3>Select Document Types</h3>
-        <div class="document-type-options">
-            <label class="document-option ${documentType === 'barangay clearance' ? 'selected' : ''}" data-type="barangay clearance">
-                <input type="checkbox" ${documentType === 'barangay clearance' ? 'checked' : ''}>
-                <span class="checkmark"></span>
-                Barangay Clearance
-            </label>
-            <label class="document-option ${documentType === 'barangay residency' ? 'selected' : ''}" data-type="barangay residency">
-                <input type="checkbox" ${documentType === 'barangay residency' ? 'checked' : ''}>
-                <span class="checkmark"></span>
-                Barangay Residency
-            </label>
-            <label class="document-option ${documentType === 'barangay indigency' ? 'selected' : ''}" data-type="barangay indigency">
-                <input type="checkbox" ${documentType === 'barangay indigency' ? 'checked' : ''}>
-                <span class="checkmark"></span>
-                Barangay Indigency
-            </label>
+    // Sidebar header
+    const sidebarHeader = document.createElement("div")
+    sidebarHeader.style.cssText = `
+      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    `
+    sidebarHeader.innerHTML = `
+      <h3 style="margin: 0; font-size: 18px; font-weight: 700;">📋 Select Documents</h3>
+      <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">Choose one or more documents to request</p>
+    `
+
+    // Document bookmarks
+    const bookmarksContainer = document.createElement("div")
+    bookmarksContainer.className = "document-bookmarks"
+    bookmarksContainer.style.cssText = `
+      padding: 20px 15px;
+    `
+
+    // FIXED: Initialize selectedDocuments properly
+    const selectedDocuments = new Set()
+
+    // Only add preselected types if they exist and are valid
+    if (preselectedTypes && Array.isArray(preselectedTypes)) {
+      preselectedTypes.forEach((type) => {
+        if (type && documentTypes.some((dt) => dt.name === type)) {
+          selectedDocuments.add(type)
+        }
+      })
+    }
+
+    documentTypes.forEach((docType, index) => {
+      const bookmark = document.createElement("div")
+      bookmark.className = "document-bookmark"
+      bookmark.dataset.docType = docType.name
+
+      const isSelected = selectedDocuments.has(docType.name)
+
+      bookmark.style.cssText = `
+        background: ${isSelected ? `linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%)` : "white"};
+        color: ${isSelected ? "white" : "#333"};
+        border: 2px solid ${docType.color};
+        border-radius: 15px;
+        padding: 15px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        box-shadow: ${isSelected ? `0 6px 20px ${docType.color}40` : "0 2px 8px rgba(0,0,0,0.1)"};
+        transform: ${isSelected ? "translateX(5px)" : "translateX(0)"};
+      `
+
+      bookmark.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 24px;">${docType.icon}</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px;">${docType.displayName}</div>
+            <div style="font-size: 12px; opacity: 0.8;">${docType.description}</div>
+          </div>
+          <div class="checkbox-indicator" style="
+            width: 24px;
+            height: 24px;
+            border: 2px solid ${isSelected ? "white" : docType.color};
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: ${isSelected ? "rgba(255,255,255,0.2)" : "transparent"};
+          ">
+            ${isSelected ? '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>' : ""}
+          </div>
         </div>
-    `;
+      `
 
-    // Create main form
-    const form = document.createElement("form");
-    form.id = "documentForm";
-    form.className = "document-form";
+      bookmark.addEventListener("click", () => {
+        if (selectedDocuments.has(docType.name)) {
+          selectedDocuments.delete(docType.name)
+          bookmark.style.background = "white"
+          bookmark.style.color = "#333"
+          bookmark.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"
+          bookmark.style.transform = "translateX(0)"
+          bookmark.querySelector(".checkbox-indicator").innerHTML = ""
+          bookmark.querySelector(".checkbox-indicator").style.background = "transparent"
+          bookmark.querySelector(".checkbox-indicator").style.borderColor = docType.color
+        } else {
+          selectedDocuments.add(docType.name)
+          bookmark.style.background = `linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%)`
+          bookmark.style.color = "white"
+          bookmark.style.boxShadow = `0 6px 20px ${docType.color}40`
+          bookmark.style.transform = "translateX(5px)"
+          bookmark.querySelector(".checkbox-indicator").innerHTML =
+            '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>'
+          bookmark.querySelector(".checkbox-indicator").style.background = "rgba(255,255,255,0.2)"
+          bookmark.querySelector(".checkbox-indicator").style.borderColor = "white"
+        }
+        updateFormContent()
+        updateSubmitButton()
+      })
 
-    // Add common fields section
-    const commonFieldsSection = document.createElement("div");
-    commonFieldsSection.className = "common-fields-section";
-    commonFieldsSection.innerHTML = `
-        <h3>Personal Information</h3>
-        <div class="form-group">
-            <label for="date">Date:</label>
-            <input type="date" id="date" name="date" required value="${new Date().toISOString().split("T")[0]}">
-        </div>
-        
-        <div class="form-group">
-            <label for="name">Full Name:</label>
-            <input type="text" id="name" name="name" required placeholder="EX: John james M. Dayap">
-        </div>
-        
-        <div class="form-group">
-            <label for="purok">Purok:</label>
-            <input type="text" id="purok" name="purok" required placeholder="Enter your purok number">
-        </div>
-    `;
+      bookmarksContainer.appendChild(bookmark)
+    })
 
-    // Create dynamic forms container
-    const dynamicFormsContainer = document.createElement("div");
-    dynamicFormsContainer.className = "dynamic-forms-container";
-    dynamicFormsContainer.id = "dynamicFormsContainer";
+    sidebarContainer.appendChild(sidebarHeader)
+    sidebarContainer.appendChild(bookmarksContainer)
 
-    // Create submit button
-    const submitBtn = document.createElement("button");
-    submitBtn.type = "submit";
-    submitBtn.className = "form-submit-btn";
-    submitBtn.textContent = "Submit All Requests";
-    submitBtn.disabled = true; // Initially disabled
+    // Create main form area
+    const mainFormArea = document.createElement("div")
+    mainFormArea.className = "main-form-area"
+    mainFormArea.style.cssText = `
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    `
 
-    // Create close button
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "form-close-btn";
-    closeBtn.textContent = "×";
+    // Form header
+    const formHeader = document.createElement("div")
+    formHeader.style.cssText = `
+      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+      color: white;
+      padding: 20px 30px;
+      position: relative;
+    `
+    formHeader.innerHTML = `
+      <h2 style="margin: 0; font-size: 24px; font-weight: 700;">📄 Document Request Form</h2>
+      <p style="margin: 8px 0 0 0; opacity: 0.95; font-size: 14px;">Fill out your information and submit your requests</p>
+    `
+
+    // Close button
+    const closeBtn = document.createElement("button")
+    closeBtn.className = "form-close-btn"
+    closeBtn.innerHTML = "×"
+    closeBtn.style.cssText = `
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    `
     closeBtn.addEventListener("click", () => {
-        formOverlay.style.display = "none";
-        scrollToBottom();
-    });
+      formOverlay.style.display = "none"
+      scrollToBottom()
+    })
 
-    // Assemble form
-    form.appendChild(commonFieldsSection);
-    form.appendChild(dynamicFormsContainer);
-    form.appendChild(submitBtn);
+    formHeader.appendChild(closeBtn)
 
-    formContainer.appendChild(closeBtn);
-    formContainer.appendChild(formTitle);
-    formContainer.appendChild(selectorSection);
-    formContainer.appendChild(form);
-    formOverlay.appendChild(formContainer);
+    // Form content area
+    const formContent = document.createElement("div")
+    formContent.className = "form-content-area"
+    formContent.style.cssText = `
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+      background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+    `
+
+    // Common fields section
+    const commonFieldsSection = document.createElement("div")
+    commonFieldsSection.className = "common-fields-section"
+    commonFieldsSection.innerHTML = `
+      <div style="margin-bottom: 30px;">
+        <h3 style="margin: 0 0 20px 0; color: #c62828; font-size: 20px; font-weight: 600; border-bottom: 2px solid #ffcdd2; padding-bottom: 10px;">👤 Personal Information</h3>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">📅 Date:</label>
+            <input type="date" id="form-date" required value="${new Date().toISOString().split("T")[0]}" 
+                   style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">🏘️ Purok:</label>
+            <input type="text" id="form-purok" required placeholder="Enter your purok number" 
+                   style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
+          </div>
+        </div>
+        
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">👤 Full Name:</label>
+          <input type="text" id="form-name" required placeholder="Example: Juan C. Reyes" 
+                 style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
+        </div>
+      </div>
+    `
+
+    // Dynamic forms container
+    const dynamicFormsContainer = document.createElement("div")
+    dynamicFormsContainer.className = "dynamic-forms-container"
+    dynamicFormsContainer.id = "dynamicFormsContainer"
+
+    // Submit button
+    const submitBtn = document.createElement("button")
+    submitBtn.type = "submit"
+    submitBtn.className = "enhanced-submit-btn"
+    submitBtn.style.cssText = `
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 30px;
+      transition: all 0.3s ease;
+      box-shadow: 0 6px 20px rgba(239, 83, 80, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    `
 
     // Function to create document-specific form
     function createDocumentSpecificForm(docType) {
-        const formSection = document.createElement("div");
-        formSection.className = "document-specific-form";
-        formSection.id = `form-${docType.replace(/\s+/g, '-')}`;
+      const docConfig = documentTypes.find((dt) => dt.name === docType)
+      if (!docConfig) return null
+
+      const formSection = document.createElement("div")
+      formSection.className = "document-specific-form"
+      formSection.id = `form-${docConfig.id}`
+      formSection.style.cssText = `
+        background: white;
+        border: 2px solid ${docConfig.color};
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      `
+
+      let specificFields = `
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid ${docConfig.color}20;">
+          <span style="font-size: 28px;">${docConfig.icon}</span>
+          <div>
+            <h4 style="margin: 0; color: ${docConfig.color}; font-size: 20px; font-weight: 700;">${docConfig.displayName}</h4>
+            <p style="margin: 4px 0 0 0; color: #666; font-size: 14px;">${docConfig.description}</p>
+          </div>
+        </div>
         
-        let specificFields = `
-            <h4>${docType.charAt(0).toUpperCase() + docType.slice(1)}</h4>
-            <div class="form-group">
-                <label for="purpose-${docType.replace(/\s+/g, '-')}">Purpose/Remarks:</label>
-                <textarea id="purpose-${docType.replace(/\s+/g, '-')}" name="purpose-${docType.replace(/\s+/g, '-')}" required placeholder="Enter the purpose of this ${docType} request"></textarea>
-            </div>
-        `;
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📝 Purpose/Remarks:</label>
+          <textarea id="purpose-${docConfig.id}" required placeholder="Enter the purpose of this ${docConfig.displayName} request" 
+                    style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; min-height: 100px; resize: vertical; transition: all 0.3s ease; font-family: inherit;"></textarea>
+        </div>
+      `
 
-        // Add copies field for barangay indigency
-        if (docType === "barangay indigency") {
-            specificFields += `
-                <div class="form-group">
-                    <label for="copies-${docType.replace(/\s+/g, '-')}">No. of Copies:</label>
-                    <input type="number" id="copies-${docType.replace(/\s+/g, '-')}" name="copies-${docType.replace(/\s+/g, '-')}" required min="1" value="1">
-                </div>
-            `;
-        }
+      if (docType === "barangay indigency") {
+        specificFields += `
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
+            <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1" 
+                   style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
+            <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;">Maximum of 10 copies per request</small>
+          </div>
+        `
+      }
 
-        formSection.innerHTML = specificFields;
-        return formSection;
+      formSection.innerHTML = specificFields
+      return formSection
     }
 
-    // Function to update dynamic forms based on selected document types
-    function updateDynamicForms() {
-        const selectedTypes = [];
-        const checkboxes = selectorSection.querySelectorAll('input[type="checkbox"]');
-        
-        checkboxes.forEach(checkbox => {
-            if (checkbox.checked) {
-                const docType = checkbox.parentElement.getAttribute('data-type');
-                selectedTypes.push(docType);
-            }
-        });
+    // Function to update form content based on selected documents
+    function updateFormContent() {
+      dynamicFormsContainer.innerHTML = ""
 
-        // Clear existing forms
-        dynamicFormsContainer.innerHTML = "";
+      Array.from(selectedDocuments).forEach((docType) => {
+        const formSection = createDocumentSpecificForm(docType)
+        if (formSection) {
+          dynamicFormsContainer.appendChild(formSection)
+        }
+      })
+    }
 
-        // Create forms for selected types
-        selectedTypes.forEach(docType => {
-            const formSection = createDocumentSpecificForm(docType);
-            dynamicFormsContainer.appendChild(formSection);
-        });
+    // FIXED: Function to update submit button with proper logic
+    function updateSubmitButton() {
+      const count = selectedDocuments.size
 
-        // Enable/disable submit button
-        submitBtn.disabled = selectedTypes.length === 0;
-        
-        // Update submit button text
-        if (selectedTypes.length === 0) {
-            submitBtn.textContent = "Select at least one document type";
-        } else if (selectedTypes.length === 1) {
-            submitBtn.textContent = "Submit Request";
+      if (count === 0) {
+        submitBtn.textContent = "Select at least one document type"
+        submitBtn.disabled = true
+        submitBtn.style.background = "linear-gradient(135deg, #bdbdbd 0%, #757575 100%)"
+        submitBtn.style.cursor = "not-allowed"
+      } else {
+        submitBtn.disabled = false
+        submitBtn.style.background = "linear-gradient(135deg, #ef5350 0%, #c62828 100%)"
+        submitBtn.style.cursor = "pointer"
+
+        if (count === 1) {
+          submitBtn.textContent = "📤 Submit Request"
         } else {
-            submitBtn.textContent = `Submit ${selectedTypes.length} Requests`;
+          submitBtn.textContent = `📤 Submit ${count} Requests`
         }
+      }
     }
 
-    // Add event listeners to checkboxes
-    const checkboxes = selectorSection.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', (e) => {
-            const label = e.target.parentElement;
-            if (e.target.checked) {
-                label.classList.add('selected');
-            } else {
-                label.classList.remove('selected');
-            }
-            updateDynamicForms();
-        });
-    });
+    // Assemble the form
+    formContent.appendChild(commonFieldsSection)
+    formContent.appendChild(dynamicFormsContainer)
+    formContent.appendChild(submitBtn)
 
-    // Initialize with the requested document type
-    updateDynamicForms();
+    mainFormArea.appendChild(formHeader)
+    mainFormArea.appendChild(formContent)
 
-    // Show form
-    formOverlay.style.display = "flex";
+    formContainer.appendChild(sidebarContainer)
+    formContainer.appendChild(mainFormArea)
+    formOverlay.appendChild(formContainer)
 
-    // Handle form submission
-    form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+    // Initialize form
+    updateFormContent()
+    updateSubmitButton()
 
-        // Collect common data
-        const commonData = {
-            date: document.getElementById("date").value,
-            name: document.getElementById("name").value,
-            purok: document.getElementById("purok").value,
-        };
+    // Show form overlay
+    formOverlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      backdrop-filter: blur(8px);
+    `
 
-        // Collect data for each selected document type
-        const selectedTypes = [];
-        checkboxes.forEach(checkbox => {
-            if (checkbox.checked) {
-                const docType = checkbox.parentElement.getAttribute('data-type');
-                selectedTypes.push(docType);
-            }
-        });
+    // Handle form submission - FIXED to work with new backend
+    submitBtn.addEventListener("click", async (e) => {
+      e.preventDefault()
 
-        // Prepare requests array
-        const requests = [];
-        selectedTypes.forEach(docType => {
-            const docTypeId = docType.replace(/\s+/g, '-');
-            const purposeElement = document.getElementById(`purpose-${docTypeId}`);
-            const copiesElement = document.getElementById(`copies-${docTypeId}`);
+      if (selectedDocuments.size === 0) {
+        alert("Please select at least one document type")
+        return
+      }
 
-            const requestData = {
-                documentType: docType,
-                ...commonData,
-                purpose: purposeElement.value,
-            };
+      // Get common data
+      const dateElement = formContent.querySelector("#form-date")
+      const nameElement = formContent.querySelector("#form-name")
+      const purokElement = formContent.querySelector("#form-purok")
 
-            // Add copies if it exists (for barangay indigency)
-            if (copiesElement) {
-                requestData.copies = copiesElement.value;
-            }
+      const dateValue = dateElement ? dateElement.value.trim() : ""
+      const nameValue = nameElement ? nameElement.value.trim() : ""
+      const purokValue = purokElement ? purokElement.value.trim() : ""
 
-            requests.push(requestData);
-        });
+      if (!dateValue || !nameValue || !purokValue) {
+        alert("Please fill in all required fields")
+        return
+      }
 
-        // Disable submit button and show loading
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Submitting...";
+      // Validate all document-specific fields
+      let allFieldsValid = true
+      const purposeValues = {}
+      let copiesValue = 1
 
-        try {
-            // Submit all requests
-            const results = await Promise.all(
-                requests.map(requestData => 
-                    fetch("/submit_document", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(requestData),
-                    }).then(response => response.json())
-                )
-            );
+      for (const docType of selectedDocuments) {
+        const docConfig = documentTypes.find((dt) => dt.name === docType)
+        if (!docConfig) continue
 
-            // Check if all requests were successful
-            const successfulRequests = results.filter(result => result.success);
-            const failedRequests = results.filter(result => !result.success);
-
-            if (successfulRequests.length > 0) {
-                // Hide form
-                formOverlay.style.display = "none";
-
-                // Create success message
-                let responseText = `
-                    <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                        <p><strong>Document Request${successfulRequests.length > 1 ? 's' : ''} Submitted Successfully!</strong></p>
-                `;
-
-                if (successfulRequests.length === 1) {
-                    const result = successfulRequests[0];
-                    responseText += `
-                        <p>Your request for a <strong>${requests[0].documentType.title()}</strong> has been submitted and is now being processed.</p>
-                        <p><strong>Reference Number:</strong> ${result.reference_number}</p>
-                    `;
-                } else {
-                    responseText += `<p>Your ${successfulRequests.length} document requests have been submitted and are now being processed.</p>`;
-                    responseText += `<p><strong>Reference Numbers:</strong></p><ul>`;
-                    
-                    successfulRequests.forEach((result, index) => {
-                        const docType = requests.find(req => req.documentType === Object.keys(result)[0] || requests[index].documentType);
-                        responseText += `<li>${requests[index].documentType.title()}: ${result.reference_number}</li>`;
-                    });
-                    responseText += `</ul>`;
-                }
-
-                responseText += `
-                        <p>Please save ${successfulRequests.length > 1 ? 'these reference numbers' : 'this reference number'} for tracking your request status.</p>
-                        <p>You can check the status of your ${successfulRequests.length > 1 ? 'requests' : 'request'} by asking me about ${successfulRequests.length > 1 ? 'the reference numbers' : 'the reference number'}.</p>
-                        <p>Processing time is typically 3-5 business days. You will be notified when your ${successfulRequests.length > 1 ? 'documents are' : 'document is'} ready for pickup.</p>
-                `;
-
-                if (failedRequests.length > 0) {
-                    responseText += `
-                        <p style="color: #e53935;"><strong>Note:</strong> ${failedRequests.length} request${failedRequests.length > 1 ? 's' : ''} failed to submit. Please try again for the failed ${failedRequests.length > 1 ? 'requests' : 'request'}.</p>
-                    `;
-                }
-
-                responseText += `</div>`;
-
-                // Show success message
-                addMessage(responseText);
-                scrollToBottom();
-            } else {
-                // All requests failed
-                alert("Error: All document requests failed to submit. Please try again.");
-            }
-
-        } catch (error) {
-            alert("Error: Unable to submit document requests");
-            console.error("Error:", error);
-        } finally {
-            // Re-enable submit button
-            submitBtn.disabled = false;
-            updateDynamicForms(); // This will reset the button text
+        const purposeElement = formContent.querySelector(`#purpose-${docConfig.id}`)
+        if (!purposeElement || !purposeElement.value.trim()) {
+          alert(`Please fill in the purpose for ${docConfig.displayName}`)
+          allFieldsValid = false
+          break
         }
+        purposeValues[docType] = purposeElement.value.trim()
+
+        // Handle copies for barangay indigency
+        if (docType === "barangay indigency") {
+          const copiesElement = formContent.querySelector(`#copies-${docConfig.id}`)
+          if (copiesElement) {
+            copiesValue = Number.parseInt(copiesElement.value) || 1
+          }
+        }
+      }
+
+      if (!allFieldsValid) return
+
+      // Disable submit button and show loading
+      submitBtn.disabled = true
+      submitBtn.textContent = "⏳ Submitting Requests..."
+      submitBtn.style.background = "linear-gradient(135deg, #bdbdbd 0%, #757575 100%)"
+
+      try {
+        // Create a combined purpose from all selected documents
+        const combinedPurpose = Object.values(purposeValues).join("; ")
+
+        // FIXED: Send data matching the new backend structure
+        const formData = {
+          document_types: Array.from(selectedDocuments), // Send as array for multiple documents
+          date: dateValue,
+          name: nameValue,
+          purok: purokValue,
+          purpose: combinedPurpose,
+          copies: copiesValue,
+        }
+
+        // Add chat_id if it exists
+        if (currentChatId) {
+          formData.chat_id = currentChatId
+        }
+
+        console.log("Submitting request:", formData)
+
+        const response = await fetch("/submit_document", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("Server response:", errorText)
+          throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`)
+        }
+
+        const result = await response.json()
+
+        if (result.success) {
+          // Hide form
+          formOverlay.style.display = "none"
+
+          // Show success message from backend
+          addMessage(result.response)
+          scrollToBottom()
+        } else {
+          alert("Error: " + (result.error || result.message || "Failed to submit document request"))
+        }
+      } catch (error) {
+        console.error("Error submitting document request:", error)
+        alert("Error: Unable to submit document request. " + error.message)
+      } finally {
+        // Re-enable submit button
+        submitBtn.disabled = false
+        updateSubmitButton()
+      }
     })
   }
-  // Chat History Functions
+
+  // Helper function to adjust color brightness
+  function adjustColor(color, amount) {
+    const usePound = color[0] === "#"
+    const col = usePound ? color.slice(1) : color
+    const num = Number.parseInt(col, 16)
+    let r = (num >> 16) + amount
+    let g = ((num >> 8) & 0x00ff) + amount
+    let b = (num & 0x0000ff) + amount
+    r = r > 255 ? 255 : r < 0 ? 0 : r
+    g = g > 255 ? 255 : g < 0 ? 0 : g
+    b = b > 255 ? 255 : b < 0 ? 0 : b
+    return (usePound ? "#" : "") + ((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")
+  }
+
+  // Make showDocumentForm globally accessible
+  window.showDocumentForm = showDocumentForm
+
+  // Chat History Functions (keeping existing functionality)
   function loadChats() {
     if (!chatList) {
       console.error("Chat list element not found")
       return
     }
 
-    console.log("Loading chats...")
-
     fetch("/user/chats")
       .then((response) => response.json())
       .then((data) => {
-        console.log("Chats loaded:", data)
         chats = data.chats || []
         renderChatList()
       })
@@ -787,12 +960,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderChatList() {
-    if (!chatList) {
-      console.error("Chat list element not found")
-      return
-    }
-
-    console.log("Rendering chat list with", chats.length, "chats")
+    if (!chatList) return
 
     if (chats.length === 0) {
       chatList.innerHTML = `
@@ -816,23 +984,18 @@ document.addEventListener("DOMContentLoaded", () => {
         chatItem.classList.add("active")
       }
 
-      // Format the date
       const chatDate = new Date(chat.updated_at)
       const today = new Date()
       let dateText = ""
 
       if (chatDate.toDateString() === today.toDateString()) {
-        // Today - show time
         dateText = chatDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       } else if (chatDate.getFullYear() === today.getFullYear()) {
-        // This year - show month and day
         dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric" })
       } else {
-        // Different year - show date with year
         dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
       }
 
-      // FIXED: Simplified structure to make clicking more reliable
       chatItem.innerHTML = `
         <div class="chat-item-content">
           <div class="chat-title">${chat.title}</div>
@@ -848,21 +1011,16 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `
 
-      // FIXED: Add click event to the entire chat item
       chatItem.addEventListener("click", (e) => {
-        // Only load chat if not clicking on action buttons
         if (!e.target.closest(".chat-actions")) {
-          console.log("Chat item clicked, loading chat ID:", chat.id)
           loadChat(chat.id)
         }
       })
 
-      // FIXED: Add specific click handlers for the buttons
       const renameBtn = chatItem.querySelector(".rename-chat-btn")
       if (renameBtn) {
         renameBtn.addEventListener("click", (e) => {
-          e.stopPropagation() // Prevent triggering the chat item click
-          console.log("Rename button clicked for chat ID:", chat.id)
+          e.stopPropagation()
           window.renameChat(chat.id)
         })
       }
@@ -870,8 +1028,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const deleteBtn = chatItem.querySelector(".delete-chat-btn")
       if (deleteBtn) {
         deleteBtn.addEventListener("click", (e) => {
-          e.stopPropagation() // Prevent triggering the chat item click
-          console.log("Delete button clicked for chat ID:", chat.id)
+          e.stopPropagation()
           window.deleteChat(chat.id)
         })
       }
@@ -881,8 +1038,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function createNewChat() {
-    console.log("Creating new chat...")
-
     fetch("/user/chats/new", {
       method: "POST",
       headers: {
@@ -892,22 +1047,15 @@ document.addEventListener("DOMContentLoaded", () => {
     })
       .then((response) => response.json())
       .then((data) => {
-        console.log("New chat created:", data)
-
         if (data.success) {
-          // Clear the chat messages
           chatMessages.innerHTML = ""
-
-          // Set the current chat ID
           currentChatId = data.chat_id
 
-          // Update the chat title
           if (currentChatTitle) {
             currentChatTitle.textContent = data.title
             currentChatTitle.dataset.chatId = data.chat_id
           }
 
-          // Add initial AI message
           addMessage(`
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
               <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
@@ -915,7 +1063,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           `)
 
-          // Refresh the chat list
           loadChats()
         } else {
           alert("Error: " + (data.error || "Failed to create new chat"))
@@ -928,22 +1075,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function loadChat(chatId) {
-    console.log("Loading chat ID:", chatId)
-
-    // Set the current chat ID
     currentChatId = chatId
 
-    // Find the chat in the list
     const chat = chats.find((c) => c.id === chatId)
     if (chat) {
       if (currentChatTitle) {
         currentChatTitle.textContent = chat.title
-        // Store the chat ID in the title element for reference
         currentChatTitle.dataset.chatId = chatId
       }
     }
 
-    // Update the active chat in the list
     const chatItems = document.querySelectorAll(".chat-item")
     chatItems.forEach((item) => {
       item.classList.remove("active")
@@ -952,21 +1093,16 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     })
 
-    // Clear the chat messages
     chatMessages.innerHTML = ""
 
-    // Load the chat messages
     fetch(`/user/chats/${chatId}/messages`)
       .then((response) => response.json())
       .then((data) => {
-        console.log("Chat messages loaded:", data)
-
         if (data.success && data.messages && data.messages.length > 0) {
           data.messages.forEach((message) => {
             addMessage(message.message, message.is_user)
           })
         } else {
-          // If no messages, add initial AI message
           addMessage(`
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
               <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
@@ -975,7 +1111,6 @@ document.addEventListener("DOMContentLoaded", () => {
           `)
         }
 
-        // Close the sidebar on mobile after selecting a chat
         if (isMobile && chatSidebar) {
           chatSidebar.classList.remove("active")
           const overlay = document.querySelector(".sidebar-overlay")
@@ -991,11 +1126,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateChatTitle(chatId, newTitle) {
-    if (!newTitle || newTitle.trim() === "") {
-      return
-    }
-
-    console.log("Updating chat title:", chatId, "to:", newTitle)
+    if (!newTitle || newTitle.trim() === "") return
 
     fetch(`/user/chats/${chatId}/rename`, {
       method: "POST",
@@ -1006,15 +1137,11 @@ document.addEventListener("DOMContentLoaded", () => {
     })
       .then((response) => response.json())
       .then((data) => {
-        console.log("Update chat title response:", data)
-
         if (data.success) {
-          // Update the current chat title if this is the active chat
           if (currentChatId === chatId && currentChatTitle) {
             currentChatTitle.textContent = newTitle.trim()
           }
 
-          // Update the chat in the list
           const chatItem = document.getElementById(`chat-${chatId}`)
           if (chatItem) {
             const titleElement = chatItem.querySelector(".chat-title")
@@ -1023,13 +1150,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
 
-          // Update the chat in the chats array
           const chatIndex = chats.findIndex((c) => c.id === chatId)
           if (chatIndex !== -1) {
             chats[chatIndex].title = newTitle.trim()
           }
 
-          // Show success notification
           showNotification("Chat renamed successfully", "success")
         } else {
           showNotification(data.error || "Failed to rename chat", "error")
@@ -1065,7 +1190,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (chatSidebar) {
         chatSidebar.classList.toggle("active")
 
-        // Create or remove overlay for mobile
         if (isMobile) {
           let overlay = document.querySelector(".sidebar-overlay")
 
@@ -1152,7 +1276,6 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   }
 
-  // Add event listener for Enter key in rename modal
   if (chatTitleInput) {
     chatTitleInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
@@ -1162,15 +1285,13 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   }
 
-  // Window resize event to update isMobile
   window.addEventListener("resize", () => {
     isMobile = window.innerWidth <= 768
   })
 
-  // Initial button state
+  // Initial setup
   setSubmitButtonState(false)
 
-  // Initial AI message - removed document type information
   addMessage(`
     <div class="ai-response" style="text-align: justify; line-height: 1.6;">
       <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
@@ -1178,43 +1299,20 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
   `)
 
-  // Team member hover effect
-  const teamMembers = document.querySelectorAll(".team-member")
-
-  teamMembers.forEach((member) => {
-    member.addEventListener("mouseenter", () => {
-      member.querySelector(".member-info").style.transform = "translateY(-100%)"
-    })
-
-    member.addEventListener("mouseleave", () => {
-      member.querySelector(".member-info").style.transform = "translateY(0)"
-    })
-  })
-
-  // Set up auto-scrolling
   setupAutoScroll()
-
-  // Initial scroll to bottom
   scrollToBottom()
 
-  // Force scroll on window resize to handle layout shifts
   window.addEventListener("resize", scrollToBottom)
 
-  // Load chat history if user is logged in
   if (chatList) {
-    console.log("Chat list found, loading chats...")
     loadChats()
-
-    // Create a new chat if none exists
     if (!currentChatId) {
       createNewChat()
     }
-  } else {
-    console.warn("Chat list element not found")
   }
 })
 
-// Notification function in global scope
+// Global functions
 function showNotification(message, type = "info") {
   const notification = document.createElement("div")
   notification.className = `notification ${type}`
@@ -1222,12 +1320,10 @@ function showNotification(message, type = "info") {
 
   document.body.appendChild(notification)
 
-  // Show the notification
   setTimeout(() => {
     notification.classList.add("show")
   }, 10)
 
-  // Hide and remove after 3 seconds
   setTimeout(() => {
     notification.classList.remove("show")
     setTimeout(() => {
@@ -1236,242 +1332,13 @@ function showNotification(message, type = "info") {
   }, 3000)
 }
 
-// Add notification styles if they don't exist
-document.addEventListener("DOMContentLoaded", () => {
-  if (!document.getElementById("notification-styles")) {
-    const style = document.createElement("style")
-    style.id = "notification-styles"
-    style.textContent = `
-      .notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 10px 20px;
-        border-radius: 4px;
-        color: white;
-        opacity: 0;
-        transform: translateY(-20px);
-        transition: opacity 0.3s, transform 0.3s;
-        z-index: 1000;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      }
-      
-      .notification.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      
-      .notification.success {
-        background-color: #4CAF50;
-      }
-      
-      .notification.error {
-        background-color: #F44336;
-      }
-      
-      .notification.info {
-        background-color: #2196F3;
-      }
-      
-      /* FIXED: Added styles for chat items to make them more clickable */
-      .chat-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 15px;
-        border-bottom: 1px solid rgba(0,0,0,0.1);
-        cursor: pointer;
-        transition: background-color 0.2s;
-      }
-      
-      .chat-item:hover {
-        background-color: rgba(0,0,0,0.05);
-      }
-      
-      .chat-item.active {
-        background-color: rgba(0,0,0,0.1);
-      }
-      
-      .chat-item-content {
-        flex: 1;
-        overflow: hidden;
-      }
-      
-      .chat-title {
-        font-weight: 500;
-        margin-bottom: 3px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      
-      .chat-item-date {
-        font-size: 0.8em;
-        color: rgba(0,0,0,0.6);
-      }
-      
-      .chat-actions {
-        display: flex;
-        gap: 5px;
-      }
-      
-      .chat-actions button {
-        background: none;
-        border: none;
-        padding: 5px;
-        cursor: pointer;
-        opacity: 0.6;
-        transition: opacity 0.2s;
-      }
-      
-      .chat-actions button:hover {
-        opacity: 1;
-      }
-      
-      /* Auth required message styles */
-      .auth-required-message {
-        margin: 10px 0;
-        width: 100%;
-      }
-      
-      .auth-buttons-container {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-        margin-top: 15px;
-      }
-      
-      .auth-button {
-        border: none;
-        padding: 10px 15px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: opacity 0.3s;
-      }
-      
-      .auth-button:hover {
-        opacity: 0.9;
-      }
-      
-      .login-button {
-        background-color: #4CAF50;
-        color: white;
-      }
-      
-      .register-button {
-        background-color: #2196F3;
-        color: white;
-      }
-    `
-    document.head.appendChild(style)
-  }
-})
-
-// FIXED: Add global loadChat function for direct access from HTML
-window.loadChat = (chatId) => {
-  // Find the chat item and simulate a click
-  const chatItem = document.querySelector(`.chat-item[data-chat-id="${chatId}"]`)
-  if (chatItem) {
-    chatItem.click()
-  }
-}
-
-// FIXED: Add global loadChatHistories function for direct access from HTML
-window.loadChatHistories = () => {
-  const chatList = document.getElementById("chat-history-list")
-  if (chatList) {
-    // Clear the list
-    chatList.innerHTML = '<div class="loading-chats">Loading chats...</div>'
-
-    // Fetch chats
-    fetch("/user/chats")
-      .then((response) => response.json())
-      .then((data) => {
-        if (!data.chats || data.chats.length === 0) {
-          chatList.innerHTML = `
-            <div class="empty-chats">
-              <p>No chat history found.</p>
-              <p>Start a new conversation to create your first chat.</p>
-            </div>
-          `
-          return
-        }
-
-        chatList.innerHTML = ""
-
-        // Get current chat ID if available
-        const currentChatTitle = document.getElementById("currentChatTitle")
-        const currentChatId = currentChatTitle ? currentChatTitle.dataset.chatId : null
-
-        data.chats.forEach((chat) => {
-          const chatItem = document.createElement("div")
-          chatItem.className = "chat-item"
-          chatItem.id = `chat-${chat.id}`
-          chatItem.dataset.chatId = chat.id
-
-          if (chat.id == currentChatId) {
-            chatItem.classList.add("active")
-          }
-
-          // Format the date
-          const chatDate = new Date(chat.updated_at)
-          const today = new Date()
-          let dateText = ""
-
-          if (chatDate.toDateString() === today.toDateString()) {
-            dateText = chatDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          } else if (chatDate.getFullYear() === today.getFullYear()) {
-            dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric" })
-          } else {
-            dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
-          }
-
-          chatItem.innerHTML = `
-            <div class="chat-item-content">
-              <div class="chat-title">${chat.title}</div>
-              <div class="chat-item-date">${dateText}</div>
-            </div>
-            <div class="chat-actions">
-              <button class="rename-chat-btn" title="Rename Chat" onclick="event.stopPropagation(); window.renameChat(${chat.id})">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              </button>
-              <button class="delete-chat-btn" title="Delete Chat" onclick="event.stopPropagation(); window.deleteChat(${chat.id})">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-              </button>
-            </div>
-          `
-
-          // Add click event to load chat
-          chatItem.addEventListener("click", (e) => {
-            if (!e.target.closest(".chat-actions")) {
-              console.log("Chat item clicked, loading chat ID:", chat.id)
-              window.loadChat(chat.id)
-            }
-          })
-
-          chatList.appendChild(chatItem)
-        })
-      })
-      .catch((error) => {
-        console.error("Error loading chat histories:", error)
-        chatList.innerHTML = '<div class="empty-chats">Error loading chats. Please try again.</div>'
-      })
-  }
-}
-
-// Global function to check if user is logged in
 window.isUserLoggedIn = () =>
   document.body.classList.contains("user-logged-in") ||
   document.querySelector(".user-info") !== null ||
   document.querySelector('[data-user-logged-in="true"]') !== null ||
   document.getElementById("user-dropdown") !== null
 
-// Fixed renameChat function for global scope
 window.renameChat = (chatId) => {
-  console.log("Rename chat function called for chat ID:", chatId)
-
-  // Get the current title
   let currentTitle = ""
   const chatItem = document.getElementById(`chat-${chatId}`)
   if (chatItem) {
@@ -1481,14 +1348,12 @@ window.renameChat = (chatId) => {
     }
   }
 
-  // Show the rename modal
   if (document.getElementById("renameChatModal")) {
     document.getElementById("chatTitle").value = currentTitle
     document.getElementById("renameChatModal").dataset.chatId = chatId
     document.getElementById("renameChatModal").style.display = "block"
     document.getElementById("chatTitle").focus()
   } else {
-    // Fallback to prompt if modal not available
     const newTitle = prompt("Enter a new title for this chat:", currentTitle)
     if (newTitle && newTitle.trim() !== "") {
       window.updateChatTitle(chatId, newTitle)
@@ -1496,26 +1361,18 @@ window.renameChat = (chatId) => {
   }
 }
 
-// Fixed deleteChat function for global scope
 window.deleteChat = (chatId) => {
-  console.log("Delete chat function called for chat ID:", chatId)
-
-  // Show the delete confirmation modal
   if (document.getElementById("deleteChatModal")) {
     document.getElementById("deleteChatModal").dataset.chatId = chatId
     document.getElementById("deleteChatModal").style.display = "block"
   } else {
-    // Fallback to confirm if modal not available
     if (confirm("Are you sure you want to delete this chat? This action cannot be undone.")) {
       window.performDeleteChat(chatId)
     }
   }
 }
 
-// Declare the performDeleteChat function globally
 window.performDeleteChat = (chatId) => {
-  console.log("Performing delete for chat ID:", chatId)
-
   fetch(`/user/chats/${chatId}/delete`, {
     method: "POST",
     headers: {
@@ -1524,32 +1381,26 @@ window.performDeleteChat = (chatId) => {
   })
     .then((response) => response.json())
     .then((data) => {
-      console.log("Delete chat response:", data)
-
       if (data.success) {
-        // Remove the chat from the list
         const chatItem = document.getElementById(`chat-${chatId}`)
         if (chatItem) {
           chatItem.remove()
         }
 
-        // Remove the chat from the chats array
-        chats = chats.filter((c) => c.id !== chatId)
+        if (window.chats) {
+          window.chats = window.chats.filter((c) => c.id !== chatId)
+        }
 
-        // If this was the active chat, clear the chat area and create a new chat
-        if (currentChatId === chatId) {
+        if (window.currentChatId === chatId) {
           document.getElementById("chat-messages").innerHTML = ""
-          currentChatId = null
+          window.currentChatId = null
           if (document.getElementById("currentChatTitle")) {
             document.getElementById("currentChatTitle").textContent = "New Chat"
             document.getElementById("currentChatTitle").dataset.chatId = ""
           }
-
-          // Create a new chat
           window.createNewChat()
         }
 
-        // Show success notification
         showNotification("Chat deleted successfully", "success")
       } else {
         showNotification(data.error || "Failed to delete chat", "error")
@@ -1558,5 +1409,222 @@ window.performDeleteChat = (chatId) => {
     .catch((error) => {
       console.error("Error deleting chat:", error)
       showNotification("An error occurred while deleting the chat", "error")
+    })
+}
+
+// Add enhanced notification styles
+document.addEventListener("DOMContentLoaded", () => {
+  if (!document.getElementById("enhanced-notification-styles")) {
+    const style = document.createElement("style")
+    style.id = "enhanced-notification-styles"
+    style.textContent = `
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        color: white;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: opacity 0.3s, transform 0.3s;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-weight: 600;
+      }
+      
+      .notification.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      
+      .notification.success {
+        background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+      }
+      
+      .notification.error {
+        background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+      }
+      
+      .notification.info {
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+      }
+      
+      .chat-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 18px;
+        border-bottom: 1px solid rgba(239, 83, 80, 0.1);
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border-radius: 8px;
+        margin: 4px 8px;
+      }
+      
+      .chat-item:hover {
+        background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%);
+      }
+      
+      .chat-item.active {
+        background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+        color: white;
+      }
+      
+      .chat-item-content {
+        flex: 1;
+        overflow: hidden;
+      }
+      
+      .chat-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      
+      .chat-item-date {
+        font-size: 0.8em;
+        opacity: 0.7;
+      }
+      
+      .chat-actions {
+        display: flex;
+        gap: 8px;
+      }
+      
+      .chat-actions button {
+        background: none;
+        border: none;
+        padding: 6px;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s, transform 0.2s;
+        border-radius: 4px;
+      }
+      
+      .chat-actions button:hover {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+
+      /* Enhanced form styles */
+      .enhanced-document-form-container {
+        animation: slideInUp 0.4s ease-out;
+      }
+
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `
+    document.head.appendChild(style)
+  }
+})
+
+
+window.createNewChat = () => {
+  fetch("/user/chats/new", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title: "New Chat" }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        const chatMessages = document.getElementById("chat-messages")
+        if (chatMessages) {
+          chatMessages.innerHTML = ""
+        }
+
+        window.currentChatId = data.chat_id
+
+        const currentChatTitle = document.getElementById("currentChatTitle")
+        if (currentChatTitle) {
+          currentChatTitle.textContent = data.title
+          currentChatTitle.dataset.chatId = data.chat_id
+        }
+
+        if (chatMessages) {
+          chatMessages.innerHTML = `
+            <div class="ai-message">
+              <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
+                <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
+              </div>
+            </div>
+          `
+        }
+
+        // Reload chat list
+        fetch("/user/chats")
+          .then((response) => response.json())
+          .then((data) => {
+            window.chats = data.chats || []
+            const chatList = document.getElementById("chat-history-list")
+            if (chatList && window.renderChatList) {
+              window.renderChatList()
+            }
+          })
+      } else {
+        alert("Error: " + (data.error || "Failed to create new chat"))
+      }
+    })
+    .catch((error) => {
+      console.error("Error creating new chat:", error)
+      alert("Error creating new chat. Please try again.")
+    })
+}
+
+window.updateChatTitle = (chatId, newTitle) => {
+  if (!newTitle || newTitle.trim() === "") return
+
+  fetch(`/user/chats/${chatId}/rename`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title: newTitle.trim() }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        const currentChatTitle = document.getElementById("currentChatTitle")
+        if (window.currentChatId === chatId && currentChatTitle) {
+          currentChatTitle.textContent = newTitle.trim()
+        }
+
+        const chatItem = document.getElementById(`chat-${chatId}`)
+        if (chatItem) {
+          const titleElement = chatItem.querySelector(".chat-title")
+          if (titleElement) {
+            titleElement.textContent = newTitle.trim()
+          }
+        }
+
+        if (window.chats) {
+          const chatIndex = window.chats.findIndex((c) => c.id === chatId)
+          if (chatIndex !== -1) {
+            window.chats[chatIndex].title = newTitle.trim()
+          }
+        }
+
+        showNotification("Chat renamed successfully", "success")
+      } else {
+        showNotification(data.error || "Failed to rename chat", "error")
+      }
+    })
+    .catch((error) => {
+      console.error("Error renaming chat:", error)
+      showNotification("An error occurred while renaming the chat", "error")
     })
 }
