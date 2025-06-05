@@ -23,6 +23,9 @@ from barangay_data import (
     is_about_population, 
     detect_document_type
 )
+from notable_places import handle_place_request, is_place_request, get_random_images, NOTABLE_PLACES
+
+from barangay_history import get_relevant_info
 
 # Configure logging
 logging.basicConfig(
@@ -47,7 +50,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session expires
 
 # Email configuration
 SMTP_SERVER = 'smtp.gmail.com'
-SMTP_PORT = 587
+SMTP_PORT = 587 
 EMAIL_ADDRESS = 'baac.ai.zambales@gmail.com'
 EMAIL_PASSWORD = 'vntq tvkq cvjx vcbi'  # App password
 
@@ -363,7 +366,7 @@ def log_document_request(document_type):
         cursor.close()
         return_connection(connection)
 
-# Function to get document status by reference ID
+# FIXED: Function to get document status by reference ID
 def get_document_status(reference_id):
     connection = get_connection()
     if connection is None:
@@ -372,28 +375,22 @@ def get_document_status(reference_id):
 
     cursor = None
     try:
-        # Log the reference ID for debugging
         logger.info(f"Checking status for reference ID: {reference_id}")
         
         cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Extract the numeric part of the reference ID (e.g., "REF-123" -> 123)
+        # Extract the numeric part of the reference ID
         doc_id = reference_id.split('-')[1] if '-' in reference_id else reference_id
         logger.info(f"Extracted document ID: {doc_id}")
         
-        # First, check if the document exists
-        check_query = "SELECT COUNT(*) FROM document_submissions WHERE id = %s"
-        cursor.execute(check_query, (doc_id,))
-        count = cursor.fetchone()[0]
-        logger.info(f"Found {count} documents with ID {doc_id}")
-        
-        if count == 0:
-            logger.warning(f"No document found with ID {doc_id}")
-            return None
-        
-        # Now get the document details
+        # FIXED: Get the document details - use document_types instead of document_type
         query = """
-        SELECT id, document_type, name, status, pickup_date, submission_date
+        SELECT id, 
+               CASE 
+                   WHEN document_types IS NOT NULL THEN document_types
+                   ELSE ARRAY['Unknown']
+               END as document_types,
+               name, status, pickup_date, submission_date
         FROM document_submissions
         WHERE id = %s
         """
@@ -401,12 +398,16 @@ def get_document_status(reference_id):
         result = cursor.fetchone()
         
         if result:
-            # Convert to dict and log for debugging
             result_dict = dict(result)
+            # Convert array to string for display
+            if isinstance(result_dict['document_types'], list):
+                result_dict['document_type'] = ', '.join(result_dict['document_types'])
+            else:
+                result_dict['document_type'] = str(result_dict['document_types'])
             logger.info(f"Found document: {result_dict}")
             return result_dict
         
-        logger.warning(f"No document found with ID {doc_id} (after query)")
+        logger.warning(f"No document found with ID {doc_id}")
         return None
     except Exception as e:
         logger.error(f"Error getting document status: {e}")
@@ -1585,7 +1586,7 @@ def reset_password(token):
         return render_template('reset_password.html', token=token)
         
     except Exception as e:
-        logger.error(f"Error verifying reset token: {str(e)}")
+        logger.error(f"Error verifying reset token: {e}")
         return render_template('reset_password.html', error=True, error_message="An error occurred while verifying the reset link.")
     finally:
         cursor.close()
@@ -1635,6 +1636,21 @@ def get_response():
         # Get user ID if logged in
         user_id = session.get('user_id')
         is_logged_in = is_user_logged_in()
+
+        # Try to get historical/geographic/demographic data from barangay_history.py
+        from barangay_history import get_relevant_info
+        relevant_info = get_relevant_info(user_prompt)
+        if relevant_info:
+            combined_text = "<br><br>".join([f"<h4>{title}</h4><p>{info.strip()}</p>" for title, info in relevant_info])
+
+            # Optionally log or save
+            if chat_id and user_id:
+                save_message_to_chat(chat_id, user_id, user_prompt, combined_text)
+            else:
+                manage_conversation_history(user_prompt, combined_text)
+
+            log_conversation(user_prompt, combined_text, user_id)
+            return jsonify({"response": combined_text})
         
         # Check for admin authentication but have AI respond naturally
         parts = user_prompt.split()
@@ -1643,6 +1659,91 @@ def get_response():
             log_conversation(user_prompt, "I understand you're asking about administrative access. Let me check that for you.", user_id)
             session['admin_authenticated'] = True
             return jsonify({"response": "ADMIN_AUTHENTICATED"})
+        
+        # Check if this is a request for notable places
+        if is_place_request(user_prompt):
+            # Check if user is asking for all places or a specific place
+            user_prompt_lower = user_prompt.lower()
+            
+            # Keywords that indicate they want to see all places
+            all_places_keywords = [
+                "all places", "lahat ng lugar", "mga lugar", "notable places", 
+                "tourist spots", "landmarks", "mga landmark", "show me places",
+                "pictures of places", "images of places", "mga larawan ng lugar"
+            ]
+            
+            # Check if they want to see all places
+            wants_all_places = any(keyword in user_prompt_lower for keyword in all_places_keywords)
+            
+            if wants_all_places:
+                # Show one image from each of the 7 places
+                all_place_images = []
+                place_descriptions = []
+                
+                for place_name in NOTABLE_PLACES.keys():
+                    # Get one random image for each place
+                    images = get_random_images(place_name, 1)
+                    if images:
+                        all_place_images.extend(images)
+                        place_descriptions.append(f"<strong>{place_name.title()}</strong>")
+                
+                if all_place_images:
+                    # Create image HTML
+                    image_html = ""
+                    for i, img_path in enumerate(all_place_images):
+                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 200px; height: 150px; object-fit: cover; margin: 5px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />'
+                        if (i + 1) % 3 == 0:  # Add line break every 3 images
+                            image_html += "<br>"
+                    
+                    response_text = f"""
+                    <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                        <p>Here are the notable places in Barangay Amungan! These are some of the important landmarks and locations that serve our community:</p>
+                        <div style="text-align: center; margin: 20px 0;">
+                            {image_html}
+                        </div>
+                        <p>The places shown include: {', '.join(place_descriptions)}. Each of these locations plays an important role in the daily life and development of our barangay.</p>
+                        <p>If you'd like to see more pictures of a specific place, just ask me about it!</p>
+                    </div>
+                    """
+                    
+                    # Save to chat history if chat_id is provided and user is logged in
+                    if chat_id and user_id:
+                        save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+                    else:
+                        # Add to session-based conversation history
+                        manage_conversation_history(user_prompt, response_text)
+                    
+                    log_conversation(user_prompt, response_text, user_id)
+                    return jsonify({"response": response_text})
+            else:
+                # Handle specific place request
+                place_result = handle_place_request(user_prompt)
+                
+                if place_result:
+                    # Create image HTML
+                    image_html = ""
+                    for img_path in place_result['image_paths']:
+                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />'
+                    
+                    response_text = f"""
+                    <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                        <p>{place_result['text']}</p>
+                        <div style="text-align: center; margin: 20px 0;">
+                            {image_html}
+                        </div>
+                        <p>If you'd like to see other notable places in Barangay Amungan, just ask me to show you all the places!</p>
+                    </div>
+                    """
+                    
+                    # Save to chat history if chat_id is provided and user is logged in
+                    if chat_id and user_id:
+                        save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+                    else:
+                        # Add to session-based conversation history
+                        manage_conversation_history(user_prompt, response_text)
+                    
+                    log_conversation(user_prompt, response_text, user_id)
+                    return jsonify({"response": response_text})
         
         # Check if this is a reference number query
         user_prompt_lower = user_prompt.lower()
@@ -1755,8 +1856,8 @@ def get_response():
             <li>Item 1</li>
             <li>Item 2</li>
             </ul>
-            
-            Answer The user if they ask in English and tagalog.
+        
+            Answer The user in the language they used.
             If users ask in ilocano or zambal respond accordingly but still with respect.
             If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
             If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
@@ -1835,14 +1936,21 @@ def get_response():
                         "documentType": requested_document
                     })
                 
-                # User is logged in, proceed with document request
+                # User is logged in, provide response with form button
                 document_title = requested_document.title()
                 log_document_request(document_title)
                 
-                # Create a response with form trigger
+                # Create a response with form button
                 response_text = f"""
                 <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-                    <p>Thank you for your interest in requesting a {document_title}. Please fill out the form that appears below to proceed with your request.</p>
+                    <p>I can help you request a <strong>{document_title}</strong>. This document is commonly used for various purposes such as employment, business permits, and other official transactions.</p>
+                    <p>To proceed with your request, please click the button below to fill out the required information:</p>
+                    <div style="margin: 20px 0; text-align: center;">
+                        <button onclick="showDocumentForm('{requested_document}')" class="document-request-btn" style="background-color: #e53935; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;">
+                            📄 Request {document_title}
+                        </button>
+                    </div>
+                    <p style="font-size: 14px; color: #666;">Processing time is typically 3-5 business days. You will receive a reference number to track your request.</p>
                 </div>
                 """
                 
@@ -1855,7 +1963,7 @@ def get_response():
                 
                 return jsonify({
                     "response": response_text,
-                    "showForm": True,
+                    "showFormButton": True,
                     "formType": requested_document
                 })
         
@@ -1936,7 +2044,7 @@ def get_response():
         
         IMPORTANT: You will primarily use English or Tagalog Based on the user's question or prompt.
         Avoid sending the word "html" since it is somehow counts as error?
-        Avoid sending ```html as response
+        Avoid sending ``html as response
         If users ask about requesting documents, inform them that you can only process requests for Barangay Clearance, Barangay Indigency, and Barangay Residency.
         If users ask about checking document status, ask them to provide their reference number (e.g., REF-123)."""
         
@@ -1945,6 +2053,20 @@ def get_response():
         
         Here is the accurate information about Barangay Amungan that you should use if the user asks about officials, puroks, or population:
         {BARANGAY_OFFICIALS_INFO}
+        """
+        
+        # Add notable places information to the context
+        context += f"""
+        
+        If users ask about places, locations, or want to see pictures of notable places in Barangay Amungan, you can show them images of these locations:
+        - Amungan Elementary School
+        - Amungan Market  
+        - Amungan National High School
+        - Barangay Hall
+        - Barangay Health Center
+        - Plaza Mercado
+
+        Important: The user might ask images in a different way refer to the view_keywords.
         """
         
         # Add conversation history from the specific chat if available
@@ -2020,15 +2142,25 @@ def submit_document():
     data = request.json
     user_id = session.get('user_id')
     
-    document_type = data.get('documentType')
+    # Handle both single and multiple document requests
+    document_types = data.get('document_types', [])
+    if not document_types:
+        # Fallback to single document for backward compatibility
+        single_doc = data.get('documentType')
+        if single_doc:
+            document_types = [single_doc]
+    
     date = data.get('date')
     name = data.get('name')
     purok = data.get('purok')
     purpose = data.get('purpose')
     copies = data.get('copies', 1)
     
-    if not all([document_type, date, name, purok, purpose]):
+    if not all([document_types, date, name, purok, purpose]):
         return jsonify({"error": "All fields are required"}), 400
+    
+    if not document_types:
+        return jsonify({"error": "At least one document type must be selected"}), 400
     
     connection = get_connection()
     if connection is None:
@@ -2037,13 +2169,49 @@ def submit_document():
     try:
         cursor = connection.cursor()
         
-        # Insert document request
+        # Create the table with correct structure if it doesn't exist
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS document_submissions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            document_types TEXT[] NOT NULL,
+            request_date DATE NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            purok VARCHAR(100) NOT NULL,
+            purpose TEXT NOT NULL,
+            copies INTEGER DEFAULT 1,
+            status VARCHAR(50) DEFAULT 'Pending',
+            submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            pickup_date DATE,
+            notes TEXT
+        )
+        """)
+        
+        # Add foreign key constraint if it doesn't exist
+        cursor.execute("""
+        SELECT COUNT(*)
+        FROM information_schema.table_constraints
+        WHERE constraint_name = 'document_submissions_user_id_fkey'
+        AND table_name = 'document_submissions'
+        """)
+        
+        if cursor.fetchone()[0] == 0:
+            try:
+                cursor.execute("""
+                ALTER TABLE document_submissions
+                ADD CONSTRAINT document_submissions_user_id_fkey
+                FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+                """)
+            except Exception as e:
+                logger.warning(f"Could not add foreign key constraint: {e}")
+        
+        # Insert document request with multiple document types
         query = """
-        INSERT INTO document_submissions (user_id, document_type, request_date, name, purok, purpose, copies, status, submission_date)
+        INSERT INTO document_submissions (user_id, document_types, request_date, name, purok, purpose, copies, status, submission_date)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', CURRENT_TIMESTAMP)
         RETURNING id
         """
-        values = (user_id, document_type, date, name, purok, purpose, copies)
+        values = (user_id, document_types, date, name, purok, purpose, copies)
         cursor.execute(query, values)
         
         document_id = cursor.fetchone()[0]
@@ -2053,16 +2221,33 @@ def submit_document():
         reference_number = f"REF-{document_id}"
         
         # Create success response
-        response_text = f"""
-        <div class="ai-response" style="text-align: justify; line-height: 1.6;">
-            <p><strong>Document Request Submitted Successfully!</strong></p>
-            <p>Your request for a <strong>{document_type.title()}</strong> has been submitted and is now being processed.</p>
-            <p><strong>Reference Number:</strong> {reference_number}</p>
-            <p>Please save this reference number for tracking your request status.</p>
-            <p>You can check the status of your request by asking me about reference number {reference_number}.</p>
-            <p>Processing time is typically 3-5 business days. You will be notified when your document is ready for pickup.</p>
-        </div>
-        """
+        if len(document_types) == 1:
+            doc_name = document_types[0].title()
+            response_text = f"""
+            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                <p><strong>🎉 Document Request Submitted Successfully!</strong></p>
+                <p>Your request for a <strong>{doc_name}</strong> has been submitted and is now being processed.</p>
+                <p><strong>Reference Number:</strong> {reference_number}</p>
+                <p>Please save this reference number for tracking your request status.</p>
+                <p>You can check the status of your request by asking me about reference number {reference_number}.</p>
+                <p><strong>Processing time:</strong> Typically 3-5 business days. You will be notified when your document is ready for pickup.</p>
+            </div>
+            """
+        else:
+            doc_list = ", ".join([doc.title() for doc in document_types])
+            response_text = f"""
+            <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+                <p><strong>🎉 Multiple Document Requests Submitted Successfully!</strong></p>
+                <p>Your requests for the following documents have been submitted and are now being processed:</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    {"".join([f"<li><strong>{doc.title()}</strong></li>" for doc in document_types])}
+                </ul>
+                <p><strong>Reference Number:</strong> {reference_number}</p>
+                <p>Please save this reference number for tracking your request status.</p>
+                <p>You can check the status of your requests by asking me about reference number {reference_number}.</p>
+                <p><strong>Processing time:</strong> Typically 3-5 business days. You will be notified when your documents are ready for pickup.</p>
+            </div>
+            """
         
         return jsonify({
             "success": True,
@@ -2073,7 +2258,7 @@ def submit_document():
     except Exception as e:
         logger.error(f"Error submitting document: {e}")
         connection.rollback()
-        return jsonify({"error": "Failed to submit document request"}), 500
+        return jsonify({"error": f"Failed to submit document request: {str(e)}"}), 500
     finally:
         cursor.close()
         return_connection(connection)
@@ -2088,7 +2273,7 @@ def admin():
     now = datetime.now()
     return render_template('admin.html', now=now, timedelta=timedelta)
 
-# Route to get document requests for admin dashboard
+# FIXED: Route to get document requests for admin dashboard
 @app.route('/admin/document_requests')
 def admin_document_requests():
     if not session.get('admin_authenticated'):
@@ -2100,10 +2285,14 @@ def admin_document_requests():
         
     try:
         cursor = connection.cursor()
+        # FIXED: Use document_types instead of document_type
         query = """
         SELECT 
             ds.id, 
-            ds.document_type, 
+            CASE 
+                WHEN ds.document_types IS NOT NULL THEN array_to_string(ds.document_types, ', ')
+                ELSE 'Unknown'
+            END as document_type,
             ds.request_date, 
             ds.name, 
             ds.purok, 
@@ -2237,6 +2426,7 @@ def ai_report():
         cursor.close()
         return_connection(connection)
 
+# FIXED: Route for admin stats
 @app.route('/admin_stats')
 def admin_stats():
     if not session.get('admin_authenticated'):
@@ -2275,12 +2465,14 @@ def admin_stats():
         requests_rows = cursor.fetchall()
         requests_data = [{"request_date": row[0].strftime('%Y-%m-%d'), "total_requests": row[1]} for row in requests_rows]
 
-        # Get document requests by type
+        # FIXED: Get document requests by type - handle array format
         cursor.execute("""
-        SELECT document_type, SUM(request_count) as total_requests 
-        FROM document_requests 
-        WHERE request_date >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY document_type
+        SELECT 
+            UNNEST(document_types) as document_type, 
+            COUNT(*) as total_requests 
+        FROM document_submissions 
+        WHERE submission_date >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY UNNEST(document_types)
         ORDER BY total_requests DESC
         """)
         document_types_rows = cursor.fetchall()
@@ -2538,7 +2730,7 @@ def custom_report():
         cursor.close()
         return_connection(connection)
 
-# Route to get user profile
+# FIXED: Route to get user profile
 @app.route('/user/profile')
 @auth_required
 def user_profile():
@@ -2555,8 +2747,14 @@ def user_profile():
     
     try:
         cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        # FIXED: Use document_types instead of document_type
         query = """
-        SELECT id, document_type, request_date, submission_date, status
+        SELECT id, 
+               CASE 
+                   WHEN document_types IS NOT NULL THEN array_to_string(document_types, ', ')
+                   ELSE 'Unknown'
+               END as document_type,
+               request_date, submission_date, status
         FROM document_submissions
         WHERE user_id = %s
         ORDER BY submission_date DESC
