@@ -55,11 +55,12 @@ EMAIL_ADDRESS = 'baac.ai.zambales@gmail.com'
 EMAIL_PASSWORD = 'vntq tvkq cvjx vcbi'  # App password
 
 # Load the GEMINI_API_KEY from environment variables
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.environ.get("GEMINI_API_KEY")
 
 if not api_key:
-    logger.error("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
-    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
+    logger.error(f"Environment keys: {list(os.environ.keys())}")  # Debug log
+    logger.error("API key is missing. Please set GEMINI_API_KEY in your Railway environment variables.")
+    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Railway environment variables.")
 
 # Configure the Gemini API client - using the older API style
 genai.configure(api_key=api_key)
