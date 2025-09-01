@@ -1724,7 +1724,7 @@ def get_response():
                     # Create image HTML
                     image_html = ""
                     for img_path in place_result['image_paths']:
-                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />'
+                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.3s;" onclick="this.style.transform = (this.style.transform === \'scale(2)\') ? \'scale(1)\' : \'scale(2)\';">'
                     
                     response_text = f"""
                     <div class="ai-response" style="text-align: justify; line-height: 1.6;">
