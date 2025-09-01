@@ -1692,7 +1692,7 @@ def get_response():
                     # Create image HTML
                     image_html = ""
                     for i, img_path in enumerate(all_place_images):
-                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 200px; height: 150px; object-fit: cover; margin: 5px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />'
+                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s;" onclick="if(this.style.position === \'fixed\'){{ this.style = \'\'; this.style.width = \'300px\'; this.style.height = \'200px\'; this.style.objectFit = \'cover\'; this.style.margin = \'10px\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 2px 4px rgba(0,0,0,0.1)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }} else {{ this.style.position = \'fixed\'; this.style.top = \'50%\'; this.style.left = \'50%\'; this.style.transform = \'translate(-50%, -50%)\'; this.style.width = \'90%\'; this.style.height = \'auto\'; this.style.zIndex = \'1000\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 4px 10px rgba(0,0,0,0.5)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }}">'
                         if (i + 1) % 3 == 0:  # Add line break every 3 images
                             image_html += "<br>"
                     
@@ -1724,7 +1724,7 @@ def get_response():
                     # Create image HTML
                     image_html = ""
                     for img_path in place_result['image_paths']:
-                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.3s;" onclick="this.style.transform = (this.style.transform === \'scale(2)\') ? \'scale(1)\' : \'scale(2)\';">'
+                        image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s;" onclick="if(this.style.position === \'fixed\'){{ this.style = \'\'; this.style.width = \'300px\'; this.style.height = \'200px\'; this.style.objectFit = \'cover\'; this.style.margin = \'10px\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 2px 4px rgba(0,0,0,0.1)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }} else {{ this.style.position = \'fixed\'; this.style.top = \'50%\'; this.style.left = \'50%\'; this.style.transform = \'translate(-50%, -50%)\'; this.style.width = \'90%\'; this.style.height = \'auto\'; this.style.zIndex = \'1000\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 4px 10px rgba(0,0,0,0.5)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }}">'
                     
                     response_text = f"""
                     <div class="ai-response" style="text-align: justify; line-height: 1.6;">
