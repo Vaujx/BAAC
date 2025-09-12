@@ -2748,17 +2748,22 @@ def user_profile():
     
     try:
         cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        # FIXED: Use document_types instead of document_type
+        # FIXED: Use document_types instead of document_type ; added notes
         query = """
-        SELECT id, 
-               CASE 
-                   WHEN document_types IS NOT NULL THEN array_to_string(document_types, ', ')
-                   ELSE 'Unknown'
-               END as document_type,
-               request_date, submission_date, status
-        FROM document_submissions
-        WHERE user_id = %s
-        ORDER BY submission_date DESC
+            SELECT 
+                id,
+                CASE 
+                    WHEN document_types IS NOT NULL 
+                        THEN array_to_string(document_types, ', ')
+                    ELSE 'Unknown'
+                END as document_type,
+                request_date,
+                submission_date,
+                status,
+                notes
+            FROM document_submissions
+            WHERE user_id = %s
+            ORDER BY submission_date DESC
         """
         cursor.execute(query, (user_id,))
         
@@ -2790,7 +2795,44 @@ def user_profile():
     finally:
         cursor.close()
         return_connection(connection)
+        
+# Route for admin replies (save into notes column)
+@app.route('/admin/reply', methods=['POST'])
+@auth_required   # keep if only admins should use this
+def add_admin_reply():
+    request_id = request.form.get('request_id')
+    reply_text = request.form.get('reply')
 
+    if not request_id or not reply_text:
+        return jsonify({"error": "Missing request_id or reply"}), 400
+
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = connection.cursor()
+
+        # Update the notes column (instead of admin_reply)
+        cursor.execute("""
+            UPDATE document_submissions
+            SET notes = %s
+            WHERE id = %s
+        """, (reply_text, request_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Request not found"}), 404
+
+        connection.commit()
+        return jsonify({"success": True, "message": "Reply saved in notes"})
+
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": f"Failed to save reply: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+        
 # Route to update user profile
 @app.route('/user/update_profile', methods=['POST'])
 @auth_required
