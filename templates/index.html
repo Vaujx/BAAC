@@ -903,6 +903,7 @@
                                                 <th>Document Type</th>
                                                 <th>Submission Date</th>
                                                 <th>Status</th>
+                                                <th>Admin Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -926,6 +927,7 @@
                                             <td>
                                                 <span class="status-badge status-${statusClass}">${doc.status}</span>
                                             </td>
+                                            <td>${doc.notes ? doc.notes : "—"}</td>
                                         </tr>
                                     `;
                                 });
