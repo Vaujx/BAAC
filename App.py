@@ -84,7 +84,7 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "EASTER")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "EGG")
 
 # Database URL - get from environment or use default for development
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:poiJRxszVlxjBEZPiwXGuTuTpMPlOjVe@shinkansen.proxy.rlwy.net:58555/baac4db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:nqosxoobTbnoRKfMtxDLWoLgjmuXzxsV@crossover.proxy.rlwy.net:55420/railway")
 
 # PostgreSQL connection pool
 try:
