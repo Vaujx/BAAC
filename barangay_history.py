@@ -1,7 +1,27 @@
 """
 Barangay Amungan History and Profile Data Module
-Contains all hardcoded information about barangay history, geography, demographics, and facilities
+Contains all hardcoded information about barangay history, geography, demographics, facilities, and the fiesta or festival of barangay amungan
 """
+
+# --- Fiesta Information ---
+FIESTA_INFO = """
+Barangay Amungan Fiesta Information
+
+ Celebration: Feast of San Isidro Labrador
+ Date: May 15 (Annual)
+ Patron Saint: San Isidro Labrador
+ Description:
+The Barangay Amungan Fiesta is celebrated every May 15 in honor of San Isidro Labrador,
+the patron saint of farmers. It includes community masses, parades, and cultural events.
+"""
+
+# --- Fiesta Query Checker ---
+def is_about_fiesta(query):
+    query_lower = query.lower()
+    fiesta_terms = [
+        "fiesta", "festival", "feast", "celebration", "san isidro", "labrador", "may 15"
+    ]
+    return any(term in query_lower for term in fiesta_terms)
 
 # Hardcoded Barangay History Information
 BARANGAY_HISTORY_INFO = """
@@ -313,6 +333,10 @@ def is_about_schools(query):
 def get_relevant_info(query):
     """Get relevant information based on the query"""
     relevant_info = []
+
+    if is_about_fiesta(query):
+        relevant_info.append(("Fiesta", FIESTA_INFO))
+        return relevant_info 
     
     if is_about_history(query):
         relevant_info.append(("History", BARANGAY_HISTORY_INFO))
