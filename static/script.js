@@ -545,278 +545,289 @@ document.addEventListener("DOMContentLoaded", async () => {
     scrollToBottom()
   }
 
-  // Enhanced document form with multiple document selection
-  function showDocumentForm(preselectedTypes = []) {
-    if (!isUserLoggedIn()) {
-      addAuthRequiredMessage(preselectedTypes[0] || "documents")
-      return
+ // Enhanced document form with multiple document selection - MOBILE RESPONSIVE
+function showDocumentForm(preselectedTypes = []) {
+  if (!isUserLoggedIn()) {
+    addAuthRequiredMessage(preselectedTypes[0] || "documents")
+    return
+  }
+
+  formOverlay.innerHTML = ""
+
+  const isMobile = window.innerWidth < 768
+  const isSmallPhone = window.innerWidth < 480
+
+  const formContainer = document.createElement("div")
+  formContainer.className = "enhanced-document-form-container"
+  formContainer.style.cssText = `
+    background: white;
+    border-radius: ${isSmallPhone ? "12px" : "20px"};
+    max-width: 1000px;
+    width: ${isSmallPhone ? "100vw" : "95%"};
+    max-height: ${isSmallPhone ? "100vh" : "90vh"};
+    overflow: hidden;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    position: relative;
+    display: flex;
+    border: 3px solid #ffcdd2;
+    flex-direction: ${isMobile ? "column" : "row"};
+  `
+
+  // <CHANGE> Create document selector sidebar with mobile responsive styling
+  const sidebarContainer = document.createElement("div")
+  sidebarContainer.className = "document-selector-sidebar"
+  sidebarContainer.style.cssText = `
+    width: ${isMobile ? "100%" : "300px"};
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-right: ${isMobile ? "none" : "2px solid #dee2e6"};
+    border-bottom: ${isMobile ? "2px solid #dee2e6" : "none"};
+    padding: 0;
+    overflow-y: auto;
+    position: relative;
+    max-height: ${isMobile ? "45vh" : "auto"};
+    -webkit-overflow-scrolling: touch;
+  `
+
+  // Sidebar header
+  const sidebarHeader = document.createElement("div")
+  sidebarHeader.style.cssText = `
+    background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+    color: white;
+    padding: ${isSmallPhone ? "15px" : "20px"};
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  `
+  sidebarHeader.innerHTML = `
+    <h3 style="margin: 0; font-size: ${isSmallPhone ? "16px" : "18px"}; font-weight: 700;">Select Documents</h3>
+    <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">Choose one or more</p>
+  `
+
+  // Document bookmarks
+  const bookmarksContainer = document.createElement("div")
+  bookmarksContainer.className = "document-bookmarks"
+  bookmarksContainer.style.cssText = `
+    padding: ${isSmallPhone ? "10px 12px" : "20px 15px"};
+  `
+
+  // Use the global selectedDocuments set
+  selectedDocuments.clear()
+  if (preselectedTypes && Array.isArray(preselectedTypes)) {
+    preselectedTypes.forEach((type) => {
+      if (type && documentTypes.some((dt) => dt.name === type)) {
+        selectedDocuments.add(type)
+      }
+    })
+  }
+
+  documentTypes.forEach((docType, index) => {
+    const bookmark = document.createElement("div")
+    bookmark.className = "document-bookmark"
+    bookmark.dataset.docType = docType.name
+
+    const isSelected = selectedDocuments.has(docType.name)
+    const limitInfo = globalCopyLimits[docType.name]
+    const isLimitReached = limitInfo && limitInfo.remaining === 0
+
+    bookmark.style.cssText = `
+      background: ${isSelected ? `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)` : "white"};
+      color: ${isSelected ? "white" : "#333"};
+      border: 2px solid ${docType.color};
+      border-radius: 15px;
+      padding: ${isSmallPhone ? "12px" : "15px"};
+      margin-bottom: 12px;
+      cursor: ${isLimitReached ? "not-allowed" : "pointer"};
+      transition: all 0.3s ease;
+      position: relative;
+      box-shadow: ${isSelected ? `0 6px 20px ${docType.color}40` : "0 2px 8px rgba(0,0,0,0.1)"};
+      transform: ${isSelected ? "translateX(5px)" : "translateX(0)"};
+      opacity: ${isLimitReached ? "0.5" : "1"};
+      pointer-events: ${isLimitReached ? "none" : "auto"};
+      font-size: ${isSmallPhone ? "14px" : "16px"};
+    `
+
+    let displayName = docType.displayName
+    let description = docType.description
+
+    if (isLimitReached) {
+      displayName += " (Limit Reached)"
+      description = "Daily limit reached. Available tomorrow."
     }
 
-    formOverlay.innerHTML = ""
-
-    const formContainer = document.createElement("div")
-    formContainer.className = "enhanced-document-form-container"
-    formContainer.style.cssText = `
-      background: white;
-      border-radius: 20px;
-      max-width: 1000px;
-      width: 95%;
-      max-height: 90vh;
-      overflow: hidden;
-      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-      position: relative;
-      display: flex;
-      border: 3px solid #ffcdd2;
+    bookmark.innerHTML = `
+      <div style="display: flex; align-items: center; gap: ${isSmallPhone ? "8px" : "12px"}; flex-wrap: wrap;">
+        <div style="font-size: ${isSmallPhone ? "20px" : "24px"}; opacity: ${isLimitReached ? "0.5" : "1"};">${docType.icon}</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-weight: 700; font-size: ${isSmallPhone ? "14px" : "16px"}; margin-bottom: 4px; color: ${isLimitReached ? "#999" : "#333"};">${displayName}</div>
+          <div style="font-size: 12px; opacity: ${isLimitReached ? "0.6" : "0.8"}; color: ${isLimitReached ? "#999" : "#666"};">${description}</div>
+        </div>
+        <div class="checkbox-indicator" style="
+          width: 24px;
+          height: 24px;
+          border: 2px solid ${isSelected ? "white" : docType.color};
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: ${isSelected ? "rgba(255,255,255,0.2)" : "transparent"};
+          opacity: ${isLimitReached ? "0.5" : "1"};
+          flex-shrink: 0;
+        ">
+          ${isSelected ? '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>' : ""}
+        </div>
+      </div>
     `
 
-    // Create document selector sidebar
-    const sidebarContainer = document.createElement("div")
-    sidebarContainer.className = "document-selector-sidebar"
-    sidebarContainer.style.cssText = `
-      width: 300px;
-      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      border-right: 2px solid #dee2e6;
-      padding: 0;
-      overflow-y: auto;
-      position: relative;
-    `
-
-    // Sidebar header
-    const sidebarHeader = document.createElement("div")
-    sidebarHeader.style.cssText = `
-      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
-      color: white;
-      padding: 20px;
-      text-align: center;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    `
-    sidebarHeader.innerHTML = `
-      <h3 style="margin: 0; font-size: 18px; font-weight: 700;">📋 Select Documents</h3>
-      <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">Choose one or more documents to request</p>
-    `
-
-    // Document bookmarks
-    const bookmarksContainer = document.createElement("div")
-    bookmarksContainer.className = "document-bookmarks"
-    bookmarksContainer.style.cssText = `
-      padding: 20px 15px;
-    `
-
-    // Use the global selectedDocuments set
-    selectedDocuments.clear() // Clear it initially before populating
-    // Only add preselected types if they exist and are valid
-    if (preselectedTypes && Array.isArray(preselectedTypes)) {
-      preselectedTypes.forEach((type) => {
-        if (type && documentTypes.some((dt) => dt.name === type)) {
-          selectedDocuments.add(type)
+    if (!isLimitReached) {
+      bookmark.addEventListener("click", () => {
+        if (selectedDocuments.has(docType.name)) {
+          selectedDocuments.delete(docType.name)
+          bookmark.style.background = "white"
+          bookmark.style.color = "#333"
+          bookmark.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"
+          bookmark.style.transform = "translateX(0)"
+          bookmark.querySelector(".checkbox-indicator").innerHTML = ""
+          bookmark.querySelector(".checkbox-indicator").style.background = "transparent"
+          bookmark.querySelector(".checkbox-indicator").style.borderColor = docType.color
+        } else {
+          selectedDocuments.add(docType.name)
+          bookmark.style.background = `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)`
+          bookmark.style.color = "white"
+          bookmark.style.boxShadow = `0 6px 20px ${docType.color}40`
+          bookmark.style.transform = "translateX(5px)"
+          bookmark.querySelector(".checkbox-indicator").innerHTML =
+            '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>'
+          bookmark.querySelector(".checkbox-indicator").style.background = "rgba(255,255,255,0.2)"
+          bookmark.querySelector(".checkbox-indicator").style.borderColor = "white"
         }
+        updateFormContent()
+        updateSubmitButton()
       })
     }
 
-    documentTypes.forEach((docType, index) => {
-      const bookmark = document.createElement("div")
-      bookmark.className = "document-bookmark"
-      bookmark.dataset.docType = docType.name
+    bookmarksContainer.appendChild(bookmark)
+  })
 
-      const isSelected = selectedDocuments.has(docType.name)
-      // Check if document has reached limit
-      const limitInfo = globalCopyLimits[docType.name]
-      const isLimitReached = limitInfo && limitInfo.remaining === 0
+  sidebarContainer.appendChild(sidebarHeader)
+  sidebarContainer.appendChild(bookmarksContainer)
 
-      bookmark.style.cssText = `
-        background: ${isSelected ? `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)` : "white"};
-        color: ${isSelected ? "white" : "#333"};
-        border: 2px solid ${docType.color};
-        border-radius: 15px;
-        padding: 15px;
-        margin-bottom: 12px;
-        cursor: ${isLimitReached ? "not-allowed" : "pointer"};
-        transition: all 0.3s ease;
-        position: relative;
-        box-shadow: ${isSelected ? `0 6px 20px ${docType.color}40` : "0 2px 8px rgba(0,0,0,0.1)"};
-        transform: ${isSelected ? "translateX(5px)" : "translateX(0)"};
-        opacity: ${isLimitReached ? "0.5" : "1"};
-        pointer-events: ${isLimitReached ? "none" : "auto"};
-      `
+  // <CHANGE> Create main form area with mobile responsive flex layout
+  const mainFormArea = document.createElement("div")
+  mainFormArea.className = "main-form-area"
+  mainFormArea.style.cssText = `
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  `
 
-      let displayName = docType.displayName
-      let description = docType.description
+  // Form header
+  const formHeader = document.createElement("div")
+  formHeader.style.cssText = `
+    background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+    color: white;
+    padding: ${isSmallPhone ? "15px 15px 15px 50px" : "20px 30px"};
+    position: relative;
+    flex-shrink: 0;
+  `
+  formHeader.innerHTML = `
+    <h2 style="margin: 0; font-size: ${isSmallPhone ? "18px" : "24px"}; font-weight: 700;">Document Request Form</h2>
+    <p style="margin: 8px 0 0 0; opacity: 0.95; font-size: 14px;">Fill out your information</p>
+  `
 
-      // Add limit indicator to display name if reached
-      if (isLimitReached) {
-        displayName += " (Limit Reached)"
-        description = "⏰ Daily limit reached. Available tomorrow."
-      }
+  // <CHANGE> Close button with mobile positioning
+  const closeBtn = document.createElement("button")
+  closeBtn.className = "form-close-btn"
+  closeBtn.innerHTML = "×"
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: ${isSmallPhone ? "10px" : "15px"};
+    right: ${isSmallPhone ? "10px" : "20px"};
+    background: rgba(255,255,255,0.2);
+    border: none;
+    font-size: ${isSmallPhone ? "24px" : "28px"};
+    cursor: pointer;
+    color: white;
+    width: ${isSmallPhone ? "35px" : "40px"};
+    height: ${isSmallPhone ? "35px" : "40px"};
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    z-index: 20;
+  `
+  closeBtn.addEventListener("click", () => {
+    formOverlay.style.display = "none"
+    scrollToBottom()
+  })
 
-      bookmark.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="font-size: 24px; opacity: ${isLimitReached ? "0.5" : "1"};">${docType.icon}</div>
-          <div style="flex: 1;">
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px; color: ${isLimitReached ? "#999" : "#333"};">${displayName}</div>
-            <div style="font-size: 12px; opacity: ${isLimitReached ? "0.6" : "0.8"}; color: ${isLimitReached ? "#999" : "#666"};">${description}</div>
-          </div>
-          <div class="checkbox-indicator" style="
-            width: 24px;
-            height: 24px;
-            border: 2px solid ${isSelected ? "white" : docType.color};
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: ${isSelected ? "rgba(255,255,255,0.2)" : "transparent"};
-            opacity: ${isLimitReached ? "0.5" : "1"};
-          ">
-            ${isSelected ? '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>' : ""}
-          </div>
-        </div>
-      `
+  formHeader.appendChild(closeBtn)
 
-      // Only add click handler if limit not reached
-      if (!isLimitReached) {
-        bookmark.addEventListener("click", () => {
-          if (selectedDocuments.has(docType.name)) {
-            selectedDocuments.delete(docType.name)
-            bookmark.style.background = "white"
-            bookmark.style.color = "#333"
-            bookmark.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"
-            bookmark.style.transform = "translateX(0)"
-            bookmark.querySelector(".checkbox-indicator").innerHTML = ""
-            bookmark.querySelector(".checkbox-indicator").style.background = "transparent"
-            bookmark.querySelector(".checkbox-indicator").style.borderColor = docType.color
-          } else {
-            selectedDocuments.add(docType.name)
-            bookmark.style.background = `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)`
-            bookmark.style.color = "white"
-            bookmark.style.boxShadow = `0 6px 20px ${docType.color}40`
-            bookmark.style.transform = "translateX(5px)"
-            bookmark.querySelector(".checkbox-indicator").innerHTML =
-              '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>'
-            bookmark.querySelector(".checkbox-indicator").style.background = "rgba(255,255,255,0.2)"
-            bookmark.querySelector(".checkbox-indicator").style.borderColor = "white"
-          }
-          updateFormContent()
-          updateSubmitButton()
-        })
-      }
+  // <CHANGE> Form content area with mobile touch scrolling
+  const formContent = document.createElement("div")
+  formContent.className = "form-content-area"
+  formContent.style.cssText = `
+    flex: 1;
+    overflow-y: auto;
+    padding: ${isSmallPhone ? "20px" : "30px"};
+    background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+    -webkit-overflow-scrolling: touch;
+  `
 
-      bookmarksContainer.appendChild(bookmark)
-    })
+  // Common fields section
+  const commonFieldsSection = document.createElement("div")
+  commonFieldsSection.className = "common-fields-section"
+  commonFieldsSection.innerHTML = `
+    <div style="margin-bottom: 30px;">
+      <h3 style="margin: 0 0 20px 0; color: #c62828; font-size: ${isSmallPhone ? "16px" : "20px"}; font-weight: 600; border-bottom: 2px solid #ffcdd2; padding-bottom: 10px;">
+        Request Details
+      </h3>
 
-    sidebarContainer.appendChild(sidebarHeader)
-    sidebarContainer.appendChild(bookmarksContainer)
-
-    // Create main form area
-    const mainFormArea = document.createElement("div")
-    mainFormArea.className = "main-form-area"
-    mainFormArea.style.cssText = `
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    `
-
-    // Form header
-    const formHeader = document.createElement("div")
-    formHeader.style.cssText = `
-      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
-      color: white;
-      padding: 20px 30px;
-      position: relative;
-    `
-    formHeader.innerHTML = `
-      <h2 style="margin: 0; font-size: 24px; font-weight: 700;">📄 Document Request Form</h2>
-      <p style="margin: 8px 0 0 0; opacity: 0.95; font-size: 14px;">Fill out your information and submit your requests</p>
-    `
-
-    // Close button
-    const closeBtn = document.createElement("button")
-    closeBtn.className = "form-close-btn"
-    closeBtn.innerHTML = "×"
-    closeBtn.style.cssText = `
-      position: absolute;
-      top: 15px;
-      right: 20px;
-      background: rgba(255,255,255,0.2);
-      border: none;
-      font-size: 28px;
-      cursor: pointer;
-      color: white;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      transition: all 0.2s ease;
-    `
-    closeBtn.addEventListener("click", () => {
-      formOverlay.style.display = "none"
-      scrollToBottom()
-    })
-
-    formHeader.appendChild(closeBtn)
-
-    // Form content area
-    const formContent = document.createElement("div")
-    formContent.className = "form-content-area"
-    formContent.style.cssText = `
-      flex: 1;
-      overflow-y: auto;
-      padding: 30px;
-      background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
-    `
-
-    // Common fields section
-    const commonFieldsSection = document.createElement("div")
-    commonFieldsSection.className = "common-fields-section"
-    commonFieldsSection.innerHTML = `
-  <div style="margin-bottom: 30px;">
-    <h3 style="margin: 0 0 20px 0; color: #c62828; font-size: 20px; font-weight: 600; border-bottom: 2px solid #ffcdd2; padding-bottom: 10px;">
-      📅 Request Details
-    </h3>
-
-    <div>
-      <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">
-        Date of Request:
-      </label>
-      <input 
-        type="date" 
-        id="form-date" 
-        required 
-        value="${new Date().toISOString().split("T")[0]}" 
-        style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px;"
-      >
+      <div>
+        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">
+          Date of Request:
+        </label>
+        <input 
+          type="date" 
+          id="form-date" 
+          required 
+          value="${new Date().toISOString().split("T")[0]}" 
+          style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; box-sizing: border-box;"
+        >
+      </div>
     </div>
-  </div>
-`
-    // Dynamic forms container
-    const dynamicFormsContainer = document.createElement("div")
-    dynamicFormsContainer.className = "dynamic-forms-container"
-    dynamicFormsContainer.id = "dynamicFormsContainer"
+  `
 
-    // Submit button
-    const submitBtn = document.createElement("button")
-    submitBtn.type = "submit"
-    submitBtn.className = "enhanced-submit-btn"
-    submitBtn.style.cssText = `
-      width: 100%;
-      padding: 18px;
-      background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
-      color: white;
-      border: none;
-      border-radius: 12px;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 30px;
-      transition: all 0.3s ease;
-      box-shadow: 0 6px 20px rgba(239, 83, 80, 0.3);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `
+  // Dynamic forms container
+  const dynamicFormsContainer = document.createElement("div")
+  dynamicFormsContainer.className = "dynamic-forms-container"
+  dynamicFormsContainer.id = "dynamicFormsContainer"
+
+  // <CHANGE> Submit button with mobile responsive sizing
+  const submitBtn = document.createElement("button")
+  submitBtn.type = "submit"
+  submitBtn.className = "enhanced-submit-btn"
+  submitBtn.style.cssText = `
+    width: 100%;
+    padding: ${isSmallPhone ? "14px" : "18px"};
+    background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: ${isSmallPhone ? "14px" : "18px"};
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 30px;
+    margin-bottom: ${isSmallPhone ? "20px" : "0"};
+    transition: all 0.3s ease;
+    box-shadow: 0 6px 20px rgba(239, 83, 80, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  `
 
     // Function to create document-specific form
     function createDocumentSpecificForm(docType) {
