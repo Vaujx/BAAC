@@ -428,6 +428,26 @@
         </div>
     </div>
 </div>
+<div id="reminder-box" 
+     style="display:none; 
+            position:fixed; 
+            top:70px; /* adjust based on your header height */
+            left:50%; 
+            transform:translateX(-50%); 
+            background-color:#ffffff; 
+            color:#e53935; 
+            padding:12px 20px; 
+            border-radius:8px; 
+            text-align:center; 
+            width:90%; 
+            max-width:600px; 
+            font-weight:600; 
+            box-shadow:0 3px 8px rgba(0,0,0,0.15); 
+            opacity:0; 
+            transition:opacity 1.5s ease, transform 1.5s ease; 
+            z-index:1000;">
+    ⚠ Reminder: This chatbot is only intended for document queries and basic information.
+</div>
 
     <header class="main-header">
         <div class="logo">
@@ -861,105 +881,105 @@
                     `;
                     
                     // Fetch user's document requests
-                    fetch('/user/profile')
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.document_requests && data.document_requests.length > 0) {
-                                // Calculate stats
-                                const total = data.document_requests.length;
-                                const pending = data.document_requests.filter(doc => doc.status.toLowerCase() === 'pending').length;
-                                const approved = data.document_requests.filter(doc => doc.status.toLowerCase() === 'approved').length;
-                                const processing = data.document_requests.filter(doc => doc.status.toLowerCase() === 'processing').length;
-                                
-                                let html = `
-                                    <div class="documents-header">
-                                        <h3>📋 Document Request History</h3>
-                                        <p>Track the status of all your document requests</p>
-                                    </div>
-                                    
-                                    <div class="document-stats">
-                                        <div class="stat-card">
-                                            <div class="stat-number">${total}</div>
-                                            <div class="stat-label">Total Requests</div>
-                                        </div>
-                                        <div class="stat-card">
-                                            <div class="stat-number">${pending}</div>
-                                            <div class="stat-label">Pending</div>
-                                        </div>
-                                        <div class="stat-card">
-                                            <div class="stat-number">${approved}</div>
-                                            <div class="stat-label">Approved</div>
-                                        </div>
-                                        <div class="stat-card">
-                                            <div class="stat-number">${processing}</div>
-                                            <div class="stat-label">Processing</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <table class="document-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Reference #</th>
-                                                <th>Document Type</th>
-                                                <th>Submission Date</th>
-                                                <th>Status</th>
-                                                <th>Admin Notes</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                `;
-                                
-                                data.document_requests.forEach(doc => {
-                                    const statusClass = doc.status.toLowerCase();
-                                    const date = new Date(doc.submission_date).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric'
-                                    });
-                                    
-                                    html += `
-                                        <tr>
-                                            <td>${doc.reference_number}</td>
-                                            <td>
-                                                <div class="document-type">${doc.document_type}</div>
-                                            </td>
-                                            <td>${date}</td>
-                                            <td>
-                                                <span class="status-badge status-${statusClass}">${doc.status}</span>
-                                            </td>
-                                            <td>${doc.notes ? doc.notes : "—"}</td>
-                                        </tr>
-                                    `;
-                                });
-                                
-                                html += '</tbody></table>';
-                                documentsContent.innerHTML = html;
-                            } else {
-                                documentsContent.innerHTML = `
-                                    <div class="empty-state">
-                                        <div class="empty-state-icon">📄</div>
-                                        <h3>No Document Requests Yet</h3>
-                                        <p>You haven't submitted any document requests. Start a conversation with our AI chatbot to request documents from Barangay Amungan.</p>
-                                        <button class="empty-state-action" onclick="document.getElementById('documentsModal').style.display='none'; document.getElementById('prompt').focus();">
-                                            Start Requesting Documents
-                                        </button>
-                                    </div>
-                                `;
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            documentsContent.innerHTML = `
-                                <div class="empty-state">
-                                    <div class="empty-state-icon">⚠️</div>
-                                    <h3>Error Loading Documents</h3>
-                                    <p>We couldn't load your document requests at this time. Please try again later.</p>
-                                    <button class="empty-state-action" onclick="location.reload();">
-                                        Retry
-                                    </button>
-                                </div>
-                            `;
-                        });
+fetch('/user/profile')
+    .then(response => response.json())
+    .then(data => {
+        if (data.document_requests && data.document_requests.length > 0) {
+            // Calculate stats
+            const total = data.document_requests.length;
+            const pending = data.document_requests.filter(doc => doc.status.toLowerCase() === 'pending').length;
+            const approved = data.document_requests.filter(doc => doc.status.toLowerCase() === 'approved').length;
+            const processing = data.document_requests.filter(doc => doc.status.toLowerCase() === 'processing').length;
+            
+            let html = `
+                <div class="documents-header">
+                    <h3>📋 Document Request History</h3>
+                    <p>Track the status of all your document requests</p>
+                </div>
+                
+                <div class="document-stats">
+                    <div class="stat-card">
+                        <div class="stat-number">${total}</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${pending}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${approved}</div>
+                        <div class="stat-label">Approved</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${processing}</div>
+                        <div class="stat-label">Processing</div>
+                    </div>
+                </div>
+                
+                <table class="document-table">
+                    <thead>
+                        <tr>
+                            <th>Reference #</th>
+                            <th>Document Type</th>
+                            <th>Submission Date</th>
+                            <th>Status</th>
+                            <th>Admin Reply</th> <!-- ✅ new column -->
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.document_requests.forEach(doc => {
+                const statusClass = doc.status.toLowerCase();
+                const date = new Date(doc.submission_date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                
+                html += `
+                    <tr>
+                        <td>${doc.reference_number}</td>
+                        <td>
+                            <div class="document-type">${doc.document_type}</div>
+                        </td>
+                        <td>${date}</td>
+                        <td>
+                            <span class="status-badge status-${statusClass}">${doc.status}</span>
+                        </td>
+                        <td>${doc.notes ? doc.notes : "—"}</td> <!-- ✅ show notes -->
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            documentsContent.innerHTML = html;
+        } else {
+            documentsContent.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📄</div>
+                    <h3>No Document Requests Yet</h3>
+                    <p>You haven't submitted any document requests. Start a conversation with our AI chatbot to request documents from Barangay Amungan.</p>
+                    <button class="empty-state-action" onclick="document.getElementById('documentsModal').style.display='none'; document.getElementById('prompt').focus();">
+                        Start Requesting Documents
+                    </button>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        documentsContent.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <h3>Error Loading Documents</h3>
+                <p>We couldn't load your document requests at this time. Please try again later.</p>
+                <button class="empty-state-action" onclick="location.reload();">
+                    Retry
+                </button>
+            </div>
+        `;
+    });
                 });
             }
             
@@ -1108,6 +1128,47 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load chat histories on page load
     if (document.getElementById('chat-history-list')) {
         loadChatHistories();
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('terms-modal');
+    const agreeButton = document.getElementById('agree-button');
+    const reminderBox = document.getElementById('reminder-box');
+    
+    const hasAgreed = sessionStorage.getItem('termsAgreed');
+    
+    if (!hasAgreed) {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    } else {
+        showReminder();
+    }
+
+    agreeButton.addEventListener('click', function() {
+        sessionStorage.setItem('termsAgreed', 'true');
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        showReminder();
+    });
+
+    function showReminder() {
+        reminderBox.style.display = 'block';
+        
+        // Short delay for smooth fade-in
+        setTimeout(() => {
+            reminderBox.style.opacity = '1';
+            reminderBox.style.transform = 'translate(-50%, 0)';
+        }, 100);
+        
+        // Fade out and slide up after 5 seconds
+        setTimeout(() => {
+            reminderBox.style.opacity = '0';
+            reminderBox.style.transform = 'translate(-50%, -15px)';
+            setTimeout(() => {
+                reminderBox.style.display = 'none';
+            }, 1500);
+        }, 5000);
     }
 });
     </script>
