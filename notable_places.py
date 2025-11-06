@@ -29,11 +29,11 @@ NOTABLE_PLACES = {
     "barangay health center": [
         "barangay_health_center.jpg"
     ],
-    "Beach Resort": [
-        "Beach Resort.jpeg",
-        "Beach Resort1.jpeg",
-        "Beach Resort2.jpeg",
-        "Beach Resort3.jpeg"
+    "beach resort": [
+        "beach_resort.jpg",
+        "beach_resort1.jpg",
+        "beach_resort2.jpg",
+        "beach_resort3.jpg"
     ],
     "plaza mercado": [
         "plaza_mercado.jpg",
@@ -53,7 +53,7 @@ PLACE_KEYWORDS = {
     "barangay hall outside": ["hall outside", "outside hall", "hall exterior", "barangay hall exterior"],
     "barangay health center": ["health center", "clinic", "medical center", "health station"],
     "plaza mercado": ["plaza", "mercado", "town plaza", "town square", "park"],
-    "Beach Resort": ["Resort", "Beach resort", "beach"]
+    "beach resort": ["resort", "beach resort", "beach"]
 }
 
 # Base directory for images
