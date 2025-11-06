@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 import psycopg2
-from psycopg2 import pool
+from psycopg2 import pool, connect, sql
 import psycopg2.extras
 from datetime import datetime, timedelta
 import logging
@@ -55,12 +55,11 @@ EMAIL_ADDRESS = 'baac.ai.zambales@gmail.com'
 EMAIL_PASSWORD = 'vntq tvkq cvjx vcbi'  # App password
 
 # Load the GEMINI_API_KEY from environment variables
-api_key = os.environ.get("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    logger.error(f"Environment keys: {list(os.environ.keys())}")  # Debug log
-    logger.error("API key is missing. Please set GEMINI_API_KEY in your Railway environment variables.")
-    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Railway environment variables.")
+    logger.error("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
+    raise ValueError("API key is missing. Please set GEMINI_API_KEY in your Render environment variables or .env file.")
 
 # Configure the Gemini API client - using the older API style
 genai.configure(api_key=api_key)
@@ -879,7 +878,7 @@ def get_user_by_google_id(google_id):
         return_connection(connection)
 
 # Function to create a new user
-def create_user(name, email, password_hash=None, oauth_provider=None, oauth_id=None, profile_pic=None, is_verified=False, verification_token=None, verification_expires=None):
+def create_user(name, email, purok, password_hash=None, oauth_provider=None, oauth_id=None, profile_pic=None, is_verified=False, verification_token=None, verification_expires=None):
     connection = get_connection()
     if connection is None:
         return None
@@ -887,11 +886,11 @@ def create_user(name, email, password_hash=None, oauth_provider=None, oauth_id=N
     try:
         cursor = connection.cursor()
         query = """
-        INSERT INTO app_users (name, email, password_hash, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO app_users (name, email, purok, password_hash, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """
-        values = (name, email, password_hash, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, datetime.now())
+        values = (name, email, password_hash, purok, oauth_provider, oauth_id, profile_pic, is_verified, verification_token, verification_expires, datetime.now())
         cursor.execute(query, values)
         user_id = cursor.fetchone()[0]
         connection.commit()
@@ -1240,6 +1239,7 @@ def toggle_chat_history():
 def register():
     if request.method == 'POST':
         name = request.form.get('name')
+        purok = request.form.get('purok')
         email = request.form.get('email')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
@@ -1274,7 +1274,8 @@ def register():
         user_id = create_user(
             name, 
             email, 
-            password_hash, 
+            password_hash,
+            purok, 
             is_verified=False, 
             verification_token=verification_token, 
             verification_expires=verification_expires
@@ -1693,8 +1694,6 @@ def get_response():
                     image_html = ""
                     for i, img_path in enumerate(all_place_images):
                         image_html += f'<img src="/{img_path}" alt="Notable place in Amungan" style="width: 300px; height: 200px; object-fit: cover; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s;" onclick="if(this.style.position === \'fixed\'){{ this.style = \'\'; this.style.width = \'300px\'; this.style.height = \'200px\'; this.style.objectFit = \'cover\'; this.style.margin = \'10px\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 2px 4px rgba(0,0,0,0.1)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }} else {{ this.style.position = \'fixed\'; this.style.top = \'50%\'; this.style.left = \'50%\'; this.style.transform = \'translate(-50%, -50%)\'; this.style.width = \'90%\'; this.style.height = \'auto\'; this.style.zIndex = \'1000\'; this.style.borderRadius = \'8px\'; this.style.boxShadow = \'0 4px 10px rgba(0,0,0,0.5)\'; this.style.cursor = \'pointer\'; this.style.transition = \'all 0.3s\'; }}">'
-                        if (i + 1) % 3 == 0:  # Add line break every 3 images
-                            image_html += "<br>"
                     
                     response_text = f"""
                     <div class="ai-response" style="text-align: justify; line-height: 1.6;">
@@ -2142,7 +2141,7 @@ def get_response():
 def submit_document():
     data = request.json
     user_id = session.get('user_id')
-    
+
     # Handle both single and multiple document requests
     document_types = data.get('document_types', [])
     if not document_types:
@@ -2150,27 +2149,32 @@ def submit_document():
         single_doc = data.get('documentType')
         if single_doc:
             document_types = [single_doc]
-    
+
     date = data.get('date')
-    name = data.get('name')
-    purok = data.get('purok')
     purpose = data.get('purpose')
     copies = data.get('copies', 1)
-    
-    if not all([document_types, date, name, purok, purpose]):
+
+    if not all([document_types, date, purpose]):
         return jsonify({"error": "All fields are required"}), 400
-    
-    if not document_types:
-        return jsonify({"error": "At least one document type must be selected"}), 400
-    
+
     connection = get_connection()
     if connection is None:
         return jsonify({"error": "Database connection failed"}), 500
-    
+
     try:
         cursor = connection.cursor()
-        
-        # Create the table with correct structure if it doesn't exist
+
+        # Fetch user's name and purok automatically from app_users
+        cursor.execute("SELECT name, purok FROM app_users WHERE id = %s", (user_id,))
+        user_info = cursor.fetchone()
+        if not user_info:
+            cursor.close()
+            connection.close()
+            return jsonify({"error": "User not found"}), 404
+
+        name, purok = user_info
+
+        # Create the table if it doesn’t exist (safety)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS document_submissions (
             id SERIAL PRIMARY KEY,
@@ -2187,15 +2191,14 @@ def submit_document():
             notes TEXT
         )
         """)
-        
-        # Add foreign key constraint if it doesn't exist
+
+        # Add foreign key constraint if it doesn’t exist
         cursor.execute("""
         SELECT COUNT(*)
         FROM information_schema.table_constraints
         WHERE constraint_name = 'document_submissions_user_id_fkey'
         AND table_name = 'document_submissions'
         """)
-        
         if cursor.fetchone()[0] == 0:
             try:
                 cursor.execute("""
@@ -2205,23 +2208,38 @@ def submit_document():
                 """)
             except Exception as e:
                 logger.warning(f"Could not add foreign key constraint: {e}")
-        
-        # Insert document request with multiple document types
+
+        # ✅ Correctly placed insert (not inside the except)
         query = """
-        INSERT INTO document_submissions (user_id, document_types, request_date, name, purok, purpose, copies, status, submission_date)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', CURRENT_TIMESTAMP)
+        INSERT INTO document_submissions (
+            user_id, document_types, request_date, name, purok, purpose,
+            copyC, copyI, copyR, status, submission_date
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, 'Pending', CURRENT_TIMESTAMP
+        )
         RETURNING id
         """
-        values = (user_id, document_types, date, name, purok, purpose, copies)
+        values = (
+            user_id,
+            document_types,
+            date,
+            name,
+            purok,
+            purpose,
+            data.get("copyC", 0),
+            data.get("copyI", 0),
+            data.get("copyR", 0)
+        )
+
         cursor.execute(query, values)
-        
         document_id = cursor.fetchone()[0]
         connection.commit()
-        
+
         # Generate reference number
         reference_number = f"REF-{document_id}"
-        
-        # Create success response
+
+        # Create success response message
         if len(document_types) == 1:
             doc_name = document_types[0].title()
             response_text = f"""
@@ -2230,8 +2248,7 @@ def submit_document():
                 <p>Your request for a <strong>{doc_name}</strong> has been submitted and is now being processed.</p>
                 <p><strong>Reference Number:</strong> {reference_number}</p>
                 <p>Please save this reference number for tracking your request status.</p>
-                <p>You can check the status of your request by asking me about reference number {reference_number}.</p>
-                <p><strong>Processing time:</strong> Typically 3-5 business days. You will be notified when your document is ready for pickup.</p>
+                <p><strong>Processing time:</strong> Typically 3–5 business days. You will be notified when your document is ready for pickup.</p>
             </div>
             """
         else:
@@ -2245,17 +2262,16 @@ def submit_document():
                 </ul>
                 <p><strong>Reference Number:</strong> {reference_number}</p>
                 <p>Please save this reference number for tracking your request status.</p>
-                <p>You can check the status of your requests by asking me about reference number {reference_number}.</p>
-                <p><strong>Processing time:</strong> Typically 3-5 business days. You will be notified when your documents are ready for pickup.</p>
+                <p><strong>Processing time:</strong> Typically 3–5 business days. You will be notified when your documents are ready for pickup.</p>
             </div>
             """
-        
+
         return jsonify({
             "success": True,
             "response": response_text,
             "reference_number": reference_number
         })
-        
+
     except Exception as e:
         logger.error(f"Error submitting document: {e}")
         connection.rollback()
@@ -2264,6 +2280,44 @@ def submit_document():
         cursor.close()
         return_connection(connection)
 
+
+# Route for admin replies (save into notes column)
+@app.route('/admin/reply', methods=['POST'])
+@auth_required   # keep if only admins should use this
+def add_admin_reply():
+    request_id = request.form.get('request_id')
+    reply_text = request.form.get('reply')
+
+    if not request_id or not reply_text:
+        return jsonify({"error": "Missing request_id or reply"}), 400
+
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = connection.cursor()
+
+        # Update the notes column (instead of admin_reply)
+        cursor.execute("""
+            UPDATE document_submissions
+            SET notes = %s
+            WHERE id = %s
+        """, (reply_text, request_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Request not found"}), 404
+
+        connection.commit()
+        return jsonify({"success": True, "message": "Reply saved in notes"})
+
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": f"Failed to save reply: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+        
 # Route for admin page
 @app.route('/admin')
 def admin():
@@ -2286,7 +2340,6 @@ def admin_document_requests():
         
     try:
         cursor = connection.cursor()
-        # FIXED: Use document_types instead of document_type
         query = """
         SELECT 
             ds.id, 
@@ -2298,7 +2351,9 @@ def admin_document_requests():
             ds.name, 
             ds.purok, 
             ds.purpose, 
-            ds.copies, 
+            ds.copyc,
+            ds.copyi, 
+            ds.copyr,
             ds.submission_date, 
             ds.status, 
             ds.pickup_date, 
@@ -2324,14 +2379,48 @@ def admin_document_requests():
             if doc.get('pickup_date'):
                 doc['pickup_date'] = doc['pickup_date'].strftime('%Y-%m-%d')
         
-        return jsonify(document_requests)
+        cursor.execute("""
+        WITH unnested_types AS (
+            SELECT 
+                ds.id,
+                UNNEST(ds.document_types) as document_type,
+                ds.copyc,
+                ds.copyi,
+                ds.copyr,
+                ds.submission_date
+            FROM document_submissions ds
+            WHERE ds.submission_date >= CURRENT_DATE - INTERVAL '30 days'
+        )
+        SELECT 
+            document_type,
+            COUNT(DISTINCT id) as total_requests,
+            COALESCE(SUM(CASE WHEN document_type = 'barangay clearance' THEN copyc ELSE 0 END), 0) as total_copyc,
+            COALESCE(SUM(CASE WHEN document_type = 'barangay indigency' THEN copyi ELSE 0 END), 0) as total_copyi,
+            COALESCE(SUM(CASE WHEN document_type = 'barangay residency' THEN copyr ELSE 0 END), 0) as total_copyr
+        FROM unnested_types
+        GROUP BY document_type
+        ORDER BY total_requests DESC
+        """)
+        document_types_rows = cursor.fetchall()
+        document_types_data = [
+            {
+                "document_type": row[0], 
+                "total_requests": row[1],
+                "total_copyc": row[2],
+                "total_copyi": row[3],
+                "total_copyr": row[4]
+            } 
+            for row in document_types_rows
+        ]
+
+        return jsonify({"document_requests": document_requests, "document_types_data": document_types_data})
     except Exception as e:
         logger.error(f"Error fetching document requests: {e}")
         return jsonify({"error": "Failed to fetch document requests"}), 500
     finally:
         cursor.close()
-        return_connection(connection)
-
+        connection.close()
+        
 # Route to update document status
 @app.route('/admin/update_document_status', methods=['POST'])
 def update_document_status():
@@ -2748,7 +2837,7 @@ def user_profile():
     
     try:
         cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        # FIXED: Use document_types instead of document_type ; added notes
+        # FIXED: Use document_types instead of document_type
         query = """
             SELECT 
                 id,
@@ -2795,44 +2884,7 @@ def user_profile():
     finally:
         cursor.close()
         return_connection(connection)
-        
-# Route for admin replies (save into notes column)
-@app.route('/admin/reply', methods=['POST'])
-@auth_required   # keep if only admins should use this
-def add_admin_reply():
-    request_id = request.form.get('request_id')
-    reply_text = request.form.get('reply')
 
-    if not request_id or not reply_text:
-        return jsonify({"error": "Missing request_id or reply"}), 400
-
-    connection = get_connection()
-    if connection is None:
-        return jsonify({"error": "Database connection failed"}), 500
-
-    try:
-        cursor = connection.cursor()
-
-        # Update the notes column (instead of admin_reply)
-        cursor.execute("""
-            UPDATE document_submissions
-            SET notes = %s
-            WHERE id = %s
-        """, (reply_text, request_id))
-
-        if cursor.rowcount == 0:
-            return jsonify({"error": "Request not found"}), 404
-
-        connection.commit()
-        return jsonify({"success": True, "message": "Reply saved in notes"})
-
-    except Exception as e:
-        connection.rollback()
-        return jsonify({"error": f"Failed to save reply: {str(e)}"}), 500
-    finally:
-        cursor.close()
-        return_connection(connection)
-        
 # Route to update user profile
 @app.route('/user/update_profile', methods=['POST'])
 @auth_required
