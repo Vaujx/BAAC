@@ -144,6 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Set up auto-scrolling with MutationObserver
+
   function setupAutoScroll() {
     const observer = new MutationObserver(() => {
       scrollToBottom()
@@ -433,7 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
     scrollToBottom()
   }
 
-  // Enhanced document form with multiple document selection - FIXED SUBMIT BUTTON ISSUE
+  // Enhanced document form with multiple document selection
   function showDocumentForm(preselectedTypes = []) {
     if (!isUserLoggedIn()) {
       addAuthRequiredMessage(preselectedTypes[0] || "documents")
@@ -492,7 +493,6 @@ document.addEventListener("DOMContentLoaded", () => {
       padding: 20px 15px;
     `
 
-    // FIXED: Initialize selectedDocuments properly
     const selectedDocuments = new Set()
 
     // Only add preselected types if they exist and are valid
@@ -644,30 +644,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const commonFieldsSection = document.createElement("div")
     commonFieldsSection.className = "common-fields-section"
     commonFieldsSection.innerHTML = `
-      <div style="margin-bottom: 30px;">
-        <h3 style="margin: 0 0 20px 0; color: #c62828; font-size: 20px; font-weight: 600; border-bottom: 2px solid #ffcdd2; padding-bottom: 10px;">👤 Personal Information</h3>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">📅 Date:</label>
-            <input type="date" id="form-date" required value="${new Date().toISOString().split("T")[0]}" 
-                   style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-          </div>
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">🏘️ Purok:</label>
-            <input type="text" id="form-purok" required placeholder="Enter your purok number" 
-                   style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-          </div>
-        </div>
-        
-        <div>
-          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">👤 Full Name:</label>
-          <input type="text" id="form-name" required placeholder="Example: Juan C. Reyes" 
-                 style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-        </div>
-      </div>
-    `
+  <div style="margin-bottom: 30px;">
+    <h3 style="margin: 0 0 20px 0; color: #c62828; font-size: 20px; font-weight: 600; border-bottom: 2px solid #ffcdd2; padding-bottom: 10px;">
+      📅 Request Details
+    </h3>
 
+    <div>
+      <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #c62828; font-size: 15px;">
+        Date of Request:
+      </label>
+      <input 
+        type="date" 
+        id="form-date" 
+        required 
+        value="${new Date().toISOString().split("T")[0]}" 
+        style="width: 100%; padding: 12px; border: 2px solid #ffcdd2; border-radius: 8px; font-size: 16px;"
+      >
+    </div>
+  </div>
+`
     // Dynamic forms container
     const dynamicFormsContainer = document.createElement("div")
     dynamicFormsContainer.className = "dynamic-forms-container"
@@ -711,7 +706,7 @@ document.addEventListener("DOMContentLoaded", () => {
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
       `
 
-      let specificFields = `
+      const specificFields = `
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid ${docConfig.color}20;">
           <span style="font-size: 28px;">${docConfig.icon}</span>
           <div>
@@ -725,18 +720,14 @@ document.addEventListener("DOMContentLoaded", () => {
           <textarea id="purpose-${docConfig.id}" required placeholder="Enter the purpose of this ${docConfig.displayName} request" 
                     style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; min-height: 100px; resize: vertical; transition: all 0.3s ease; font-family: inherit;"></textarea>
         </div>
-      `
 
-      if (docType === "barangay indigency") {
-        specificFields += `
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
-            <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1" 
-                   style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-            <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;">Maximum of 10 copies per request</small>
-          </div>
-        `
-      }
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
+          <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1"
+                 style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
+          <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;">Maximum of 10 copies per request</small>
+        </div>
+      `
 
       formSection.innerHTML = specificFields
       return formSection
@@ -754,12 +745,12 @@ document.addEventListener("DOMContentLoaded", () => {
       })
     }
 
-    // FIXED: Function to update submit button with proper logic
+    // Function to update submit button with proper logic
     function updateSubmitButton() {
       const count = selectedDocuments.size
 
       if (count === 0) {
-        submitBtn.textContent = "Select at least one document type"
+        submitBtn.textContent = ""
         submitBtn.disabled = true
         submitBtn.style.background = "linear-gradient(135deg, #bdbdbd 0%, #757575 100%)"
         submitBtn.style.cursor = "not-allowed"
@@ -807,7 +798,7 @@ document.addEventListener("DOMContentLoaded", () => {
       backdrop-filter: blur(8px);
     `
 
-    // Handle form submission - FIXED to work with new backend
+    // Handle form submission - Fixed to correctly map document types to copy counts
     submitBtn.addEventListener("click", async (e) => {
       e.preventDefault()
 
@@ -818,103 +809,85 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Get common data
       const dateElement = formContent.querySelector("#form-date")
-      const nameElement = formContent.querySelector("#form-name")
-      const purokElement = formContent.querySelector("#form-purok")
-
       const dateValue = dateElement ? dateElement.value.trim() : ""
-      const nameValue = nameElement ? nameElement.value.trim() : ""
-      const purokValue = purokElement ? purokElement.value.trim() : ""
 
-      if (!dateValue || !nameValue || !purokValue) {
-        alert("Please fill in all required fields")
+      if (!dateValue) {
+        alert("Please select a date")
         return
       }
 
-      // Validate all document-specific fields
-      let allFieldsValid = true
+      // Prepare purpose and copies for each document
       const purposeValues = {}
-      let copiesValue = 1
+      let copyC = 0,
+        copyI = 0,
+        copyR = 0
 
       for (const docType of selectedDocuments) {
         const docConfig = documentTypes.find((dt) => dt.name === docType)
         if (!docConfig) continue
 
+        // Purpose field
         const purposeElement = formContent.querySelector(`#purpose-${docConfig.id}`)
         if (!purposeElement || !purposeElement.value.trim()) {
           alert(`Please fill in the purpose for ${docConfig.displayName}`)
-          allFieldsValid = false
-          break
+          return
         }
         purposeValues[docType] = purposeElement.value.trim()
 
-        // Handle copies for barangay indigency
-        if (docType === "barangay indigency") {
-          const copiesElement = formContent.querySelector(`#copies-${docConfig.id}`)
-          if (copiesElement) {
-            copiesValue = Number.parseInt(copiesElement.value) || 1
-          }
-        }
+        const copiesElement = formContent.querySelector(`#copies-${docConfig.id}`)
+        const copiesValue = copiesElement ? Number.parseInt(copiesElement.value) || 1 : 1
+
+        if (docType === "barangay clearance") copyC = copiesValue
+        else if (docType === "barangay indigency") copyI = copiesValue
+        else if (docType === "barangay residency") copyR = copiesValue
       }
 
-      if (!allFieldsValid) return
-
-      // Disable submit button and show loading
+      // Disable submit button
       submitBtn.disabled = true
       submitBtn.textContent = "⏳ Submitting Requests..."
       submitBtn.style.background = "linear-gradient(135deg, #bdbdbd 0%, #757575 100%)"
 
       try {
-        // Create a combined purpose from all selected documents
+        // Combine purposes into a single string (semicolon-separated)
         const combinedPurpose = Object.values(purposeValues).join("; ")
 
-        // FIXED: Send data matching the new backend structure
         const formData = {
-          document_types: Array.from(selectedDocuments), // Send as array for multiple documents
+          document_types: Array.from(selectedDocuments), // plain array of strings
           date: dateValue,
-          name: nameValue,
-          purok: purokValue,
-          purpose: combinedPurpose,
-          copies: copiesValue,
+          purpose: combinedPurpose, // send as string instead of object
+          copyC: copyC,
+          copyI: copyI,
+          copyR: copyR,
         }
 
-        // Add chat_id if it exists
-        if (currentChatId) {
-          formData.chat_id = currentChatId
-        }
+        if (currentChatId) formData.chat_id = currentChatId
 
-        console.log("Submitting request:", formData)
+        console.log("[v0] Submitting document request:", formData)
 
         const response = await fetch("/submit_document", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         })
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error("Server response:", errorText)
           throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`)
         }
 
         const result = await response.json()
 
         if (result.success) {
-          // Hide form
           formOverlay.style.display = "none"
-
-          // Show success message from backend
           addMessage(result.response)
           scrollToBottom()
         } else {
           alert("Error: " + (result.error || result.message || "Failed to submit document request"))
         }
       } catch (error) {
-        console.error("Error submitting document request:", error)
+        console.error("[v0] Error submitting document request:", error)
         alert("Error: Unable to submit document request. " + error.message)
       } finally {
-        // Re-enable submit button
         submitBtn.disabled = false
         updateSubmitButton()
       }
@@ -938,7 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Make showDocumentForm globally accessible
   window.showDocumentForm = showDocumentForm
 
-  // Chat History Functions (keeping existing functionality)
+  // Chat History Functions
   function loadChats() {
     if (!chatList) {
       console.error("Chat list element not found")
@@ -1059,7 +1032,7 @@ document.addEventListener("DOMContentLoaded", () => {
           addMessage(`
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
               <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
-              <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
+              <p>Feel free to ask any questions about Barangay Amungan or request assistance with barangay services.</p>
             </div>
           `)
 
@@ -1106,7 +1079,7 @@ document.addEventListener("DOMContentLoaded", () => {
           addMessage(`
             <div class="ai-response" style="text-align: justify; line-height: 1.6;">
               <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
-              <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
+              <p>Feel free to ask any questions about Barangay Amungan or request assistance with barangay services.</p>
             </div>
           `)
         }
@@ -1295,7 +1268,7 @@ document.addEventListener("DOMContentLoaded", () => {
   addMessage(`
     <div class="ai-response" style="text-align: justify; line-height: 1.6;">
       <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
-      <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
+      <p>Feel free to ask any questions about Barangay Amungan or request assistance with barangay services.</p>
     </div>
   `)
 
@@ -1529,7 +1502,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 })
 
-
 window.createNewChat = () => {
   fetch("/user/chats/new", {
     method: "POST",
@@ -1559,7 +1531,7 @@ window.createNewChat = () => {
             <div class="ai-message">
               <div class="ai-response" style="text-align: justify; line-height: 1.6;">
                 <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
-                <p>Feel free to ask me any questions about Barangay Amungan or request assistance with barangay services.</p>
+                <p>Feel free to ask any questions about Barangay Amungan or request assistance with barangay services.</p>
               </div>
             </div>
           `
@@ -1627,4 +1599,164 @@ window.updateChatTitle = (chatId, newTitle) => {
       console.error("Error renaming chat:", error)
       showNotification("An error occurred while renaming the chat", "error")
     })
+}
+
+window.renderChatList = () => {
+  const chatList = document.getElementById("chat-history-list")
+  if (!chatList) return
+
+  if (window.chats.length === 0) {
+    chatList.innerHTML = `
+      <div class="empty-chats">
+        <p>No chat history found.</p>
+        <p>Start a new conversation to create your first chat.</p>
+      </div>
+    `
+    return
+  }
+
+  chatList.innerHTML = ""
+
+  window.chats.forEach((chat) => {
+    const chatItem = document.createElement("div")
+    chatItem.className = "chat-item"
+    chatItem.id = `chat-${chat.id}`
+    chatItem.dataset.chatId = chat.id
+
+    if (chat.id === window.currentChatId) {
+      chatItem.classList.add("active")
+    }
+
+    const chatDate = new Date(chat.updated_at)
+    const today = new Date()
+    let dateText = ""
+
+    if (chatDate.toDateString() === today.toDateString()) {
+      dateText = chatDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    } else if (chatDate.getFullYear() === today.getFullYear()) {
+      dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric" })
+    } else {
+      dateText = chatDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+    }
+
+    chatItem.innerHTML = `
+      <div class="chat-item-content">
+        <div class="chat-title">${chat.title}</div>
+        <div class="chat-item-date">${dateText}</div>
+      </div>
+      <div class="chat-actions">
+        <button class="rename-chat-btn" title="Rename Chat">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        </button>
+        <button class="delete-chat-btn" title="Delete Chat">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+    `
+
+    chatItem.addEventListener("click", (e) => {
+      if (!e.target.closest(".chat-actions")) {
+        window.loadChat(chat.id)
+      }
+    })
+
+    const renameBtn = chatItem.querySelector(".rename-chat-btn")
+    if (renameBtn) {
+      renameBtn.addEventListener("click", (e) => {
+        e.stopPropagation()
+        window.renameChat(chat.id)
+      })
+    }
+
+    const deleteBtn = chatItem.querySelector(".delete-chat-btn")
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation()
+        window.deleteChat(chat.id)
+      })
+    }
+
+    chatList.appendChild(chatItem)
+  })
+}
+
+window.loadChat = (chatId) => {
+  window.currentChatId = chatId
+
+  const chat = window.chats.find((c) => c.id === chatId)
+  if (chat) {
+    const currentChatTitle = document.getElementById("currentChatTitle")
+    if (currentChatTitle) {
+      currentChatTitle.textContent = chat.title
+      currentChatTitle.dataset.chatId = chatId
+    }
+  }
+
+  const chatItems = document.querySelectorAll(".chat-item")
+  chatItems.forEach((item) => {
+    item.classList.remove("active")
+    if (item.dataset.chatId == chatId) {
+      item.classList.add("active")
+    }
+  })
+
+  const chatMessages = document.getElementById("chat-messages")
+  if (chatMessages) {
+    chatMessages.innerHTML = ""
+  }
+
+  fetch(`/user/chats/${chatId}/messages`)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success && data.messages && data.messages.length > 0) {
+        data.messages.forEach((message) => {
+          window.addMessage(message.message, message.is_user)
+        })
+      } else {
+        window.addMessage(`
+          <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+            <p>Hello! I'm BAAC (Barangay Amungan Assistant Chatbot). How can I help you today?</p>
+            <p>Feel free to ask any questions about Barangay Amungan or request assistance with barangay services.</p>
+          </div>
+        `)
+      }
+
+      const isMobile = window.innerWidth <= 768
+      if (isMobile) {
+        const chatSidebar = document.getElementById("chat-history-panel")
+        if (chatSidebar) {
+          chatSidebar.classList.remove("active")
+          const overlay = document.querySelector(".sidebar-overlay")
+          if (overlay) {
+            overlay.classList.remove("active")
+          }
+        }
+      }
+    })
+    .catch((error) => {
+      console.error("Error loading chat messages:", error)
+      window.addMessage("Error loading chat messages. Please try again.")
+    })
+}
+
+window.addMessage = (content, isUser = false) => {
+  const chatMessages = document.getElementById("chat-messages")
+  if (!chatMessages) return
+
+  const messageDiv = document.createElement("div")
+  messageDiv.classList.add("message")
+  messageDiv.classList.add(isUser ? "user-message" : "ai-message")
+
+  if (isUser) {
+    messageDiv.textContent = content
+  } else {
+    messageDiv.innerHTML = content
+  }
+
+  chatMessages.appendChild(messageDiv)
+
+  const chatContainer = document.getElementById("chat-container")
+  if (chatContainer) {
+    chatContainer.scrollTop = chatContainer.scrollHeight
+  }
 }
