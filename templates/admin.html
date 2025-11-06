@@ -189,6 +189,12 @@
             resize: vertical;
             min-height: 100px;
         }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
         .submit-btn {
             background-color: #e53935;
             color: white;
@@ -674,6 +680,39 @@
                 padding: 10px 0 0 0 !important;
             }
         }
+
+/* Added styles for edit toggle button and forms */
+.edit-toggle-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.3s;
+}
+
+.edit-toggle-btn:hover {
+    background-color: #45a049;
+}
+
+.cancel-btn {
+    background-color: #888;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.3s;
+}
+
+.cancel-btn:hover {
+    background-color: #666;
+}
     </style>
 </head>
 <body>
@@ -860,6 +899,100 @@
                         <button type="submit" class="submit-btn">Update Credentials</button>
                     </form>
                 </div>
+
+                <!-- Updated officials form with SK Chairman and SK Officials -->
+                <div class="settings-card">
+                    <h3>Manage Barangay Officials</h3>
+                    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Update barangay officials information and commit changes to GitHub repository.</p>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <button type="button" class="edit-toggle-btn" onclick="toggleOfficialsList()">✏️ Edit Officials</button>
+                    </div>
+                    
+                    <form id="officialsForm" style="display: none;">
+                        <div class="form-group">
+                            <label for="kapitan">Punong Barangay (Kapitan):</label>
+                            <input type="text" id="kapitan" placeholder="e.g., Richard N. Redondo" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="skChairman">SK Chairperson:</label>
+                            <input type="text" id="skChairman" placeholder="e.g., Carl Eric B. Rico" required>
+                        </div>
+
+                        <!-- ADDED SK Officials textarea field right after SK Chairperson -->
+                        <div class="form-group">
+                            <label for="skOfficials">SK Officials (Remaining Members):</label>
+                            <textarea id="skOfficials" placeholder="One name per line&#10;e.g.,&#10;Arnel Jake E. Mercado&#10;Danica D. Barried&#10;Marjurine R. Dagsaan" required style="min-height: 120px;"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="kagawads">Barangay Kagawad (Councilors):</label>
+                            <textarea id="kagawads" placeholder="One name per line&#10;e.g.,&#10;Joseph D. Flauta&#10;Walter L. Olipane&#10;Richard D. Arquero" required style="min-height: 120px;"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="purokPresidents">Purok Presidents:</label>
+                            <textarea id="purokPresidents" placeholder="One name per line&#10;e.g.,&#10;Felimon V. Aramay Jr.&#10;Joselyn Alarma&#10;Alvin Abadam" required style="min-height: 150px;"></textarea>
+                        </div>
+
+                        <div style="background-color: #fff3cd; padding: 12px; border-radius: 4px; margin-bottom: 15px; font-size: 14px;">
+                            <strong>Admin Verification Required:</strong> Enter your admin credentials to update officials information.
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="officialsAdminKey">Admin Key:</label>
+                            <input type="text" id="officialsAdminKey" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="officialsAdminPass">Admin Password:</label>
+                            <input type="password" id="officialsAdminPass" required>
+                        </div>
+                        
+                        <button type="submit" class="submit-btn">Update Officials & Commit to GitHub</button>
+                        <button type="button" class="cancel-btn" onclick="toggleOfficialsList()" style="margin-left: 10px;">Cancel</button>
+                    </form>
+                </div>
+
+                <!-- New signatory settings section -->
+                <div class="settings-card">
+                    <h3>Manage Report Signatory</h3>
+                    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Update the signatory information that appears at the bottom of barangay documents.</p>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <button type="button" class="edit-toggle-btn" onclick="toggleSignatoryForm()">✏️ Edit Signatory</button>
+                    </div>
+                    
+                    <form id="signatoryForm" style="display: none;">
+                        <div class="form-group">
+                            <label for="attestatorName">Signatory Name:</label>
+                            <input type="text" id="attestatorName" placeholder="e.g., Richard N. Redondo" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="attestatorTitle">Signatory Title:</label>
+                            <input type="text" id="attestatorTitle" placeholder="e.g., Punong Barangay" required>
+                        </div>
+
+                        <div style="background-color: #fff3cd; padding: 12px; border-radius: 4px; margin-bottom: 15px; font-size: 14px;">
+                            <strong>Admin Verification Required:</strong> Enter your admin credentials to update signatory information.
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="signatoryAdminKey">Admin Key:</label>
+                            <input type="text" id="signatoryAdminKey" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="signatoryAdminPass">Admin Password:</label>
+                            <input type="password" id="signatoryAdminPass" required>
+                        </div>
+                        
+                        <button type="submit" class="submit-btn">Update Signatory</button>
+                        <button type="button" class="cancel-btn" onclick="toggleSignatoryForm()" style="margin-left: 10px;">Cancel</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -903,6 +1036,17 @@
     <script>
         // Register the datalabels plugin
         Chart.register(ChartDataLabels);
+        
+        // Toggle functions for forms
+        function toggleOfficialsList() {
+            const form = document.getElementById('officialsForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleSignatoryForm() {
+            const form = document.getElementById('signatoryForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
         
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
@@ -1153,17 +1297,31 @@
                 let displayType = doc.document_type; // Default to full document type string
                 let copiesCount = 'N/A';
                 
-                // If a specific type is filtered and it's one of the document's types
+                // Create action buttons based on current status
+                let actionButtons = '';
+                
+                if (doc.status === 'Pending') {
+                    actionButtons = `
+                        <button class="action-btn approve-btn" onclick="showStatusModal(${doc.id}, 'Approved')">Approve</button>
+                        <button class="action-btn reject-btn" onclick="showStatusModal(${doc.id}, 'Rejected')">Reject</button>
+                    `;
+                } else if (doc.status === 'Approved') {
+                    actionButtons = `
+                        <button class="action-btn claim-btn" onclick="showStatusModal(${doc.id}, 'Claimed')">Mark as Claimed</button>
+                    `;
+                }
+                
+                // Logic to determine which copy count to display
                 if (selectedTypeFilter !== 'all' && docTypes.includes(selectedTypeFilter)) {
                     displayType = selectedTypeFilter; // Show only the filtered type
                     
                     // Show only the corresponding copy count for the selected type
-                    if (selectedTypeFilter === 'barangay clearance') {
-                        copiesCount = doc.copyc !== undefined ? doc.copyc : 'N/A';
-                    } else if (selectedTypeFilter === 'barangay indigency') {
-                        copiesCount = doc.copyi !== undefined ? doc.copyi : 'N/A';
-                    } else if (selectedTypeFilter === 'barangay residency') {
-                        copiesCount = doc.copyr !== undefined ? doc.copyr : 'N/A';
+                    if (selectedTypeFilter === 'barangay clearance' && doc.copyc !== undefined) {
+                        copiesCount = doc.copyc;
+                    } else if (selectedTypeFilter === 'barangay indigency' && doc.copyi !== undefined) {
+                        copiesCount = doc.copyi;
+                    } else if (selectedTypeFilter === 'barangay residency' && doc.copyr !== undefined) {
+                        copiesCount = doc.copyr;
                     }
                 } else if (docTypes.length === 1) {
                     // If only one type in the document, show its specific copy count
@@ -1177,22 +1335,11 @@
                     }
                 } else if (docTypes.length > 1 && selectedTypeFilter === 'all') {
                     // If multiple types and 'All Types' is selected, sum all non-null copy counts
-                    copiesCount = (doc.copyc || 0) + (doc.copyi || 0) + (doc.copyr || 0);
-                    if (copiesCount === 0) copiesCount = 'N/A'; // If all are 0 or undefined
-                }
-                
-                // Create action buttons based on current status
-                let actionButtons = '';
-                
-                if (doc.status === 'Pending') {
-                    actionButtons = `
-                        <button class="action-btn approve-btn" onclick="showStatusModal(${doc.id}, 'Approved')">Approve</button>
-                        <button class="action-btn reject-btn" onclick="showStatusModal(${doc.id}, 'Rejected')">Reject</button>
-                    `;
-                } else if (doc.status === 'Approved') {
-                    actionButtons = `
-                        <button class="action-btn claim-btn" onclick="showStatusModal(${doc.id}, 'Claimed')">Mark as Claimed</button>
-                    `;
+                    let totalCopies = 0;
+                    if (doc.copyc !== undefined) totalCopies += doc.copyc;
+                    if (doc.copyi !== undefined) totalCopies += doc.copyi;
+                    if (doc.copyr !== undefined) totalCopies += doc.copyr;
+                    copiesCount = totalCopies > 0 ? totalCopies : 'N/A';
                 }
                 
                 row.innerHTML = `
@@ -1371,7 +1518,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.JSON.stringify({
+                    body: JSON.stringify({
                         currentKey: currentKey,
                         currentPass: currentPass,
                         newKey: newKey,
@@ -1390,6 +1537,72 @@
                 .catch(error => {
                     console.error('Error updating credentials:', error);
                     alert('Error updating credentials. Please try again.');
+                });
+            });
+
+            const officialsForm = document.getElementById('officialsForm');
+            
+            officialsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const kapitan = document.getElementById('kapitan').value;
+                const skChairman = document.getElementById('skChairman').value; // New field
+                const skOfficials = document.getElementById('skOfficials').value; // New field
+                const kagawads = document.getElementById('kagawads').value;
+                const purokPresidents = document.getElementById('purokPresidents').value;
+                const adminKey = document.getElementById('officialsAdminKey').value;
+                const adminPass = document.getElementById('officialsAdminPass').value;
+                
+                // Validate inputs
+                if (!kapitan.trim() || !skChairman.trim() || !skOfficials.trim() || !kagawads.trim() || !purokPresidents.trim()) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+                
+                // Count entries (optional, but good for validation feedback)
+                const skOfficialCount = skOfficials.trim().split('\n').filter(k => k.trim()).length;
+                const kagawadCount = kagawads.trim().split('\n').filter(k => k.trim()).length;
+                const purokCount = purokPresidents.trim().split('\n').filter(p => p.trim()).length;
+                
+                console.log('[v0] Submitting officials update with SK Officials:', skOfficialCount, 'Kagawads:', kagawadCount, 'Purok Presidents:', purokCount);
+                
+                const submitBtn = document.querySelector('#officialsForm button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Updating...';
+                
+                fetch('/admin/update_barangay_officials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        kapitan: kapitan,
+                        skChairman: skChairman, // Include new field
+                        skOfficials: skOfficials, // Include new field
+                        kagawads: kagawads,
+                        purokPresidents: purokPresidents,
+                        adminKey: adminKey,
+                        adminPass: adminPass
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Barangay officials updated and committed to GitHub successfully!');
+                        officialsForm.reset();
+                        // Optionally hide the form after successful update
+                        // toggleOfficialsList(); 
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to update officials'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating officials:', error);
+                    alert('Error updating officials. Please try again.');
+                })
+                .finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Update Officials & Commit to GitHub';
                 });
             });
         }
@@ -1698,8 +1911,8 @@
                     <div class="attestation-box">
                         <p class="attestation-text">Prepared and verified by:</p>
                         <div class="signature-line"></div>
-                        <p class="attestator-name">Darrel Castrence</p>
-                        <p class="attestator-title">Barangay Secretary</p>
+                        <p class="attestator-name">${data.signatoryName || 'Name Not Set'}</p>
+                        <p class="attestator-title">${data.signatoryTitle || 'Title Not Set'}</p>
                     </div>
                 </div>
             `;
@@ -1994,6 +2207,75 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 });
-    </script>
+
+// Toggle functions for forms (moved here for clarity and reusability)
+// function toggleOfficialsList() {
+//     const form = document.getElementById('officialsForm');
+//     form.style.display = form.style.display === 'none' ? 'block' : 'none';
+// }
+
+// function toggleSignatoryForm() {
+//     const form = document.getElementById('signatoryForm');
+//     form.style.display = form.style.display === 'none' ? 'block' : 'none';
+// }
+
+const signatoryForm = document.getElementById('signatoryForm');
+
+signatoryForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const attestatorName = document.getElementById('attestatorName').value;
+    const attestatorTitle = document.getElementById('attestatorTitle').value;
+    const adminKey = document.getElementById('signatoryAdminKey').value;
+    const adminPass = document.getElementById('signatoryAdminPass').value;
+    
+    if (!attestatorName.trim() || !attestatorTitle.trim()) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    const submitBtn = signatoryForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating...';
+    
+    fetch('/admin/update_signatory', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            attestatorName: attestatorName,
+            attestatorTitle: attestatorTitle,
+            adminKey: adminKey,
+            adminPass: adminPass
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Signatory information updated successfully!');
+            signatoryForm.reset();
+            toggleSignatoryForm();
+            // Update the signatory name/title in the report preview if it's already generated
+            if (lastReportData) {
+                lastReportData.signatoryName = attestatorName;
+                lastReportData.signatoryTitle = attestatorTitle;
+                renderCustomReport(lastReportData, lastStartDate, lastEndDate);
+            }
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update signatory'));
+        }
+    })
+    .catch(error => {
+        console.error('[v0] Error updating signatory:', error);
+        alert('Error updating signatory. Please try again.');
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Signatory';
+    });
+});
+
+</script>
 </body>
 </html>
