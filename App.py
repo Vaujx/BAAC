@@ -2459,7 +2459,7 @@ def update_barangay_officials():
         import requests
         
         # GitHub API details
-        GITHUB_TOKEN = "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"
+        GITHUB_TOKEN = "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"
         GITHUB_REPO = "Vaujx/BAAC"
         GITHUB_FILE = "barangay_data.py"
         GITHUB_BRANCH = "main"
