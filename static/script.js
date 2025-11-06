@@ -9,8 +9,117 @@ let chatList
 let chats = []
 let isMobile = window.innerWidth <= 768
 
+// Daily copy limits configuration
+const copyLimits = {
+  "barangay clearance": 1,
+  "barangay indigency": 5,
+  "barangay residency": 2,
+}
+
+const currentLimits = null
+const selectedDocuments = new Set()
+const bookmarksContainer = document.getElementById("bookmarks-container")
+
+// Function to adjust color
+function adjustColor(color, amount) {
+  return (
+    "#" +
+    color
+      .slice(1)
+      .split("")
+      .map((hex) => {
+        const val = Number.parseInt(hex, 16)
+        const newVal = Math.min(Math.max(0, val + amount), 255).toString(16)
+        return newVal.length === 1 ? "0" + newVal : newVal
+      })
+      .join("")
+  )
+}
+
+// Function to show notifications
+function showNotification(message, type = "info") {
+  const notificationContainer = document.getElementById("notification-container")
+  if (!notificationContainer) {
+    console.error("Notification container not found!")
+    return
+  }
+
+  const notification = document.createElement("div")
+  notification.className = `notification ${type}`
+  notification.textContent = message
+
+  notificationContainer.appendChild(notification)
+
+  setTimeout(() => {
+    notification.remove()
+  }, 5000)
+}
+
+// Document Types Configuration
+const documentTypes = [
+  {
+    id: "barangay-clearance",
+    name: "barangay clearance",
+    displayName: "Barangay Clearance",
+    description: "Official clearance certificate from the barangay",
+    icon: "🆔",
+    color: "#ef5350",
+  },
+  {
+    id: "barangay-residency",
+    name: "barangay residency",
+    displayName: "Barangay Residency Certificate",
+    description: "Proof of residency in Barangay Amungan",
+    icon: "🏠",
+    color: "#1976d2",
+  },
+  {
+    id: "barangay-indigency",
+    name: "barangay indigency",
+    displayName: "Barangay Indigency Certificate",
+    description: "Certificate for individuals with low income",
+    icon: "📄",
+    color: "#7b1fa2",
+  },
+]
+
+// Global state to store limits
+let globalCopyLimits = {}
+
+const adjustColorBrightness = (color, percent) => {
+  const usePound = color[0] === "#"
+  const col = usePound ? color.slice(1) : color
+  const num = Number.parseInt(col, 16)
+  const amt = Math.round(2.55 * percent)
+  const R = Math.max(0, (num >> 16) + amt)
+    .toString(16)
+    .padStart(2, "0")
+  const G = Math.max(0, ((num >> 8) & 0x00ff) + amt)
+    .toString(16)
+    .padStart(2, "0")
+  const B = Math.max(0, (num & 0x0000ff) + amt)
+    .toString(16)
+    .padStart(2, "0")
+  return (usePound ? "#" : "") + R + G + B
+}
+
+async function loadLimitsOnInit() {
+  try {
+    const response = await fetch("/user/copy-limits")
+    const data = await response.json()
+    if (data.success) {
+      globalCopyLimits = data.limits
+      console.log("[v0] Limits loaded on init:", globalCopyLimits)
+    }
+  } catch (error) {
+    console.error("Error loading initial limits:", error)
+  }
+}
+
 // Initialize the chat interface
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadLimitsOnInit()
+
   // Get the correct scrollable elements
   const chatContainer = document.getElementById("chat-container")
   chatMessages = document.getElementById("chat-messages")
@@ -43,34 +152,6 @@ document.addEventListener("DOMContentLoaded", () => {
   formOverlay.className = "form-overlay"
   formOverlay.style.display = "none"
   document.body.appendChild(formOverlay)
-
-  // Document types configuration
-  const documentTypes = [
-    {
-      id: "barangay-clearance",
-      name: "barangay clearance",
-      displayName: "Barangay Clearance",
-      icon: "📋",
-      description: "Certificate of good moral character",
-      color: "#e53935",
-    },
-    {
-      id: "barangay-residency",
-      name: "barangay residency",
-      displayName: "Barangay Residency",
-      icon: "🏠",
-      description: "Proof of residence certificate",
-      color: "#1976d2",
-    },
-    {
-      id: "barangay-indigency",
-      name: "barangay indigency",
-      displayName: "Barangay Indigency",
-      icon: "📄",
-      description: "Financial assistance certificate",
-      color: "#388e3c",
-    },
-  ]
 
   // List of interrogative words (5Ws and H)
   const interrogativeWords = [
@@ -126,7 +207,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Enhanced robust auto-scroll function
   function scrollToBottom() {
-    console.log("Scrolling to bottom")
     void chatContainer.offsetHeight
     chatContainer.scrollTop = chatContainer.scrollHeight
 
@@ -144,7 +224,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Set up auto-scrolling with MutationObserver
-
   function setupAutoScroll() {
     const observer = new MutationObserver(() => {
       scrollToBottom()
@@ -293,6 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           scrollToBottom()
 
+          // Moved this block to be after addMessage
           if (data.showFormButton && data.formType) {
             // AI provided a button to show the form
           }
@@ -307,6 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
             scrollToBottom()
           }
 
+          // Changed this to requiresAuth to match updated response from backend
           if (data.requiresAuth && data.documentType) {
             addAuthRequiredMessage(data.documentType)
             scrollToBottom()
@@ -346,16 +427,30 @@ document.addEventListener("DOMContentLoaded", () => {
     scrollToBottom()
   }
 
-  // Function to suggest a specific document form
   function addFormSuggestionButton(documentType) {
     if (!isUserLoggedIn()) {
       addAuthRequiredMessage(documentType)
       return
     }
 
+    // Check if this document has reached its limit
+    const limitInfo = copyLimits[documentType]
+    const isLimitReached = limitInfo && limitInfo.remaining === 0
+
     const suggestionDiv = document.createElement("div")
     suggestionDiv.className = "form-suggestion"
-    suggestionDiv.innerHTML = `
+
+    if (isLimitReached) {
+      // Show disabled state when limit is reached
+      suggestionDiv.innerHTML = `
+      <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15); opacity: 0.6;">
+        <p style="margin: 0 0 12px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>⏰ Daily Limit Reached</strong></p>
+        <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">${documentType.charAt(0).toUpperCase() + documentType.slice(1)} requests have reached the daily limit. Available tomorrow at 12:00 AM.</p>
+      </div>
+    `
+    } else {
+      // Show enabled button when limit not reached
+      suggestionDiv.innerHTML = `
       <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15);">
         <p style="margin: 0 0 12px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>📋 Document Request Available</strong></p>
         <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">I can help you request a ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}.</p>
@@ -365,18 +460,20 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `
 
-    const button = suggestionDiv.querySelector(".form-suggestion-btn")
-    button.addEventListener("click", () => {
-      showDocumentForm([documentType])
-      suggestionDiv.remove()
-      scrollToBottom()
-    })
+      const button = suggestionDiv.querySelector(".form-suggestion-btn")
+      button.addEventListener("click", () => {
+        // Pass empty array to open form with NO pre-selected documents
+        showDocumentForm([])
+        suggestionDiv.remove()
+        scrollToBottom()
+      })
+    }
 
     chatMessages.appendChild(suggestionDiv)
     scrollToBottom()
   }
 
-  // Function to suggest all three document types
+  // Function to suggest all three document types with limit checking
   function addAllDocumentsSuggestion() {
     const suggestionDiv = document.createElement("div")
     suggestionDiv.className = "all-documents-suggestion"
@@ -385,49 +482,63 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (userLoggedIn) {
       suggestionDiv.innerHTML = `
-        <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15);">
-          <p style="margin: 0 0 15px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
-          <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">I can help you request any of the following documents:</p>
-          <div class="document-buttons" style="display: flex; flex-direction: column; gap: 12px;">
-            ${documentTypes
-              .map(
-                (docType) => `
-              <button class="document-btn" data-type="${docType.name}" style="background: linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%); color: white; border: none; padding: 14px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">${docType.icon}</span>
-                <div style="text-align: left; flex: 1;">
-                  <div style="font-weight: 700;">${docType.displayName}</div>
-                  <div style="font-size: 12px; opacity: 0.9;">${docType.description}</div>
-                </div>
-              </button>
-            `,
-              )
-              .join("")}
-          </div>
-          <p style="margin: 20px 0 0 0; font-size: 14px; color: #666; text-align: center; font-style: italic;">Click on any document to open the request form, or select multiple documents at once.</p>
+      <div style="background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); border: 2px solid #ef5350; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(239, 83, 80, 0.15);">
+        <p style="margin: 0 0 15px 0; color: #c62828; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
+        <p style="margin: 0 0 20px 0; color: #d32f2f; line-height: 1.5;">I can help you request any of the following documents:</p>
+        <div class="document-buttons" style="display: flex; flex-direction: column; gap: 12px;">
+          ${documentTypes
+            .map((docType) => {
+              // Check limit for each document
+              const limitInfo = copyLimits[docType.name]
+              const isLimitReached = limitInfo && limitInfo.remaining === 0
+              const buttonOpacity = isLimitReached ? "0.5" : "1"
+              const cursorStyle = isLimitReached ? "not-allowed" : "pointer"
+              const pointerEvents = isLimitReached ? "none" : "auto"
+
+              return `
+                <button 
+                  class="document-btn" 
+                  data-type="${docType.name}" 
+                  data-limit-reached="${isLimitReached ? "true" : "false"}"
+                  style="background: linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%); color: white; border: none; padding: 14px 20px; border-radius: 8px; cursor: ${cursorStyle}; font-weight: 600; font-size: 15px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; opacity: ${buttonOpacity}; pointer-events: ${pointerEvents};">
+                  <span style="font-size: 18px;">${isLimitReached ? "⏰" : docType.icon}</span>
+                  <div style="text-align: left; flex: 1;">
+                    <div style="font-weight: 700;">${docType.displayName}${isLimitReached ? " (Limit Reached)" : ""}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${isLimitReached ? "Daily limit reached. Available tomorrow." : docType.description}</div>
+                  </div>
+                </button>
+              `
+            })
+            .join("")}
         </div>
-      `
+        <p style="margin: 20px 0 0 0; font-size: 14px; color: #666; text-align: center; font-style: italic;">Click on any document to open the request form, or select multiple documents at once.</p>
+      </div>
+    `
 
       const buttons = suggestionDiv.querySelectorAll(".document-btn")
       buttons.forEach((button) => {
-        button.addEventListener("click", () => {
-          const docType = button.getAttribute("data-type")
-          showDocumentForm([docType])
-          suggestionDiv.remove()
-          scrollToBottom()
-        })
+        // Only add click handler if limit not reached
+        if (button.getAttribute("data-limit-reached") === "false") {
+          button.addEventListener("click", () => {
+            // Pass empty array to open form with NO pre-selected documents
+            showDocumentForm([])
+            suggestionDiv.remove()
+            scrollToBottom()
+          })
+        }
       })
     } else {
       suggestionDiv.innerHTML = `
-        <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffffff 100%); border: 2px solid #ff9800; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(255, 152, 0, 0.15);">
-          <p style="margin: 0 0 12px 0; color: #e65100; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
-          <p style="margin: 0 0 12px 0; color: #f57c00; line-height: 1.5;">I can help you request Barangay Clearance, Barangay Indigency, and Barangay Residency documents.</p>
-          <p style="color: #d32f2f; font-weight: 600; margin: 0 0 20px 0; font-size: 15px;">⚠️ However, you need to be logged in to submit document requests.</p>
-          <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-            <button onclick="window.location.href='/login'" style="background: linear-gradient(135deg, #ef5350 0%, #c62828 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">🔑 Login</button>
-            <button onclick="window.location.href='/register'" style="background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); color: #c62828; border: 2px solid #ef5350; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">📝 Sign Up</button>
-          </div>
+      <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffffff 100%); border: 2px solid #ff9800; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 6px 20px rgba(255, 152, 0, 0.15);">
+        <p style="margin: 0 0 12px 0; color: #e65100; font-weight: 600; font-size: 16px;"><strong>📋 Available Document Requests</strong></p>
+        <p style="margin: 0 0 12px 0; color: #f57c00; line-height: 1.5;">I can help you request Barangay Clearance, Barangay Indigency, and Barangay Residency documents.</p>
+        <p style="color: #d32f2f; font-weight: 600; margin: 0 0 20px 0; font-size: 15px;">⚠️ However, you need to be logged in to submit document requests.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <button onclick="window.location.href='/login'" style="background: linear-gradient(135deg, #ef5350 0%, #c62828 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">🔑 Login</button>
+          <button onclick="window.location.href='/register'" style="background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); color: #c62828; border: 2px solid #ef5350; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">📝 Sign Up</button>
         </div>
-      `
+      </div>
+    `
     }
 
     chatMessages.appendChild(suggestionDiv)
@@ -493,8 +604,8 @@ document.addEventListener("DOMContentLoaded", () => {
       padding: 20px 15px;
     `
 
-    const selectedDocuments = new Set()
-
+    // Use the global selectedDocuments set
+    selectedDocuments.clear() // Clear it initially before populating
     // Only add preselected types if they exist and are valid
     if (preselectedTypes && Array.isArray(preselectedTypes)) {
       preselectedTypes.forEach((type) => {
@@ -510,27 +621,41 @@ document.addEventListener("DOMContentLoaded", () => {
       bookmark.dataset.docType = docType.name
 
       const isSelected = selectedDocuments.has(docType.name)
+      // Check if document has reached limit
+      const limitInfo = globalCopyLimits[docType.name]
+      const isLimitReached = limitInfo && limitInfo.remaining === 0
 
       bookmark.style.cssText = `
-        background: ${isSelected ? `linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%)` : "white"};
+        background: ${isSelected ? `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)` : "white"};
         color: ${isSelected ? "white" : "#333"};
         border: 2px solid ${docType.color};
         border-radius: 15px;
         padding: 15px;
         margin-bottom: 12px;
-        cursor: pointer;
+        cursor: ${isLimitReached ? "not-allowed" : "pointer"};
         transition: all 0.3s ease;
         position: relative;
         box-shadow: ${isSelected ? `0 6px 20px ${docType.color}40` : "0 2px 8px rgba(0,0,0,0.1)"};
         transform: ${isSelected ? "translateX(5px)" : "translateX(0)"};
+        opacity: ${isLimitReached ? "0.5" : "1"};
+        pointer-events: ${isLimitReached ? "none" : "auto"};
       `
+
+      let displayName = docType.displayName
+      let description = docType.description
+
+      // Add limit indicator to display name if reached
+      if (isLimitReached) {
+        displayName += " (Limit Reached)"
+        description = "⏰ Daily limit reached. Available tomorrow."
+      }
 
       bookmark.innerHTML = `
         <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="font-size: 24px;">${docType.icon}</div>
+          <div style="font-size: 24px; opacity: ${isLimitReached ? "0.5" : "1"};">${docType.icon}</div>
           <div style="flex: 1;">
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px;">${docType.displayName}</div>
-            <div style="font-size: 12px; opacity: 0.8;">${docType.description}</div>
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px; color: ${isLimitReached ? "#999" : "#333"};">${displayName}</div>
+            <div style="font-size: 12px; opacity: ${isLimitReached ? "0.6" : "0.8"}; color: ${isLimitReached ? "#999" : "#666"};">${description}</div>
           </div>
           <div class="checkbox-indicator" style="
             width: 24px;
@@ -541,36 +666,40 @@ document.addEventListener("DOMContentLoaded", () => {
             align-items: center;
             justify-content: center;
             background: ${isSelected ? "rgba(255,255,255,0.2)" : "transparent"};
+            opacity: ${isLimitReached ? "0.5" : "1"};
           ">
             ${isSelected ? '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>' : ""}
           </div>
         </div>
       `
 
-      bookmark.addEventListener("click", () => {
-        if (selectedDocuments.has(docType.name)) {
-          selectedDocuments.delete(docType.name)
-          bookmark.style.background = "white"
-          bookmark.style.color = "#333"
-          bookmark.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"
-          bookmark.style.transform = "translateX(0)"
-          bookmark.querySelector(".checkbox-indicator").innerHTML = ""
-          bookmark.querySelector(".checkbox-indicator").style.background = "transparent"
-          bookmark.querySelector(".checkbox-indicator").style.borderColor = docType.color
-        } else {
-          selectedDocuments.add(docType.name)
-          bookmark.style.background = `linear-gradient(135deg, ${docType.color} 0%, ${adjustColor(docType.color, -20)} 100%)`
-          bookmark.style.color = "white"
-          bookmark.style.boxShadow = `0 6px 20px ${docType.color}40`
-          bookmark.style.transform = "translateX(5px)"
-          bookmark.querySelector(".checkbox-indicator").innerHTML =
-            '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>'
-          bookmark.querySelector(".checkbox-indicator").style.background = "rgba(255,255,255,0.2)"
-          bookmark.querySelector(".checkbox-indicator").style.borderColor = "white"
-        }
-        updateFormContent()
-        updateSubmitButton()
-      })
+      // Only add click handler if limit not reached
+      if (!isLimitReached) {
+        bookmark.addEventListener("click", () => {
+          if (selectedDocuments.has(docType.name)) {
+            selectedDocuments.delete(docType.name)
+            bookmark.style.background = "white"
+            bookmark.style.color = "#333"
+            bookmark.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"
+            bookmark.style.transform = "translateX(0)"
+            bookmark.querySelector(".checkbox-indicator").innerHTML = ""
+            bookmark.querySelector(".checkbox-indicator").style.background = "transparent"
+            bookmark.querySelector(".checkbox-indicator").style.borderColor = docType.color
+          } else {
+            selectedDocuments.add(docType.name)
+            bookmark.style.background = `linear-gradient(135deg, ${docType.color} 0%, ${adjustColorBrightness(docType.color, -20)} 100%)`
+            bookmark.style.color = "white"
+            bookmark.style.boxShadow = `0 6px 20px ${docType.color}40`
+            bookmark.style.transform = "translateX(5px)"
+            bookmark.querySelector(".checkbox-indicator").innerHTML =
+              '<span style="color: white; font-weight: bold; font-size: 16px;">✓</span>'
+            bookmark.querySelector(".checkbox-indicator").style.background = "rgba(255,255,255,0.2)"
+            bookmark.querySelector(".checkbox-indicator").style.borderColor = "white"
+          }
+          updateFormContent()
+          updateSubmitButton()
+        })
+      }
 
       bookmarksContainer.appendChild(bookmark)
     })
@@ -725,7 +854,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
           <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1"
                  style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-          <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;">Maximum of 10 copies per request</small>
+          <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;"></small>
         </div>
       `
 
@@ -743,6 +872,9 @@ document.addEventListener("DOMContentLoaded", () => {
           dynamicFormsContainer.appendChild(formSection)
         }
       })
+
+      // Load and display copy limits after form is updated
+      displayCopyLimitUI()
     }
 
     // Function to update submit button with proper logic
@@ -852,9 +984,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const combinedPurpose = Object.values(purposeValues).join("; ")
 
         const formData = {
-          document_types: Array.from(selectedDocuments), // plain array of strings
+          document_types: Array.from(selectedDocuments),
           date: dateValue,
-          purpose: combinedPurpose, // send as string instead of object
+          purpose: combinedPurpose,
           copyC: copyC,
           copyI: copyI,
           copyR: copyR,
@@ -871,7 +1003,26 @@ document.addEventListener("DOMContentLoaded", () => {
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
+          const errorData = await response.json()
+
+          if (response.status === 429 && errorData.limit_info) {
+            const limitInfo = errorData.limit_info
+            const resetTime = new Date(limitInfo.reset_time).getTime()
+
+            alert(
+              `Daily Copy Limit Reached!\n\nDocument: ${limitInfo.document_type}\nUsed: ${limitInfo.used}/${limitInfo.limit}\n\nYou can request again tomorrow.`,
+            )
+
+            // Show timer
+            showResetTimer(resetTime)
+
+            formOverlay.style.display = "none"
+            submitBtn.disabled = false
+            updateSubmitButton()
+            return
+          }
+
+          const errorText = errorData.error || (await response.text())
           throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`)
         }
 
@@ -880,6 +1031,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (result.success) {
           formOverlay.style.display = "none"
           addMessage(result.response)
+
+          // Reload limits after successful submission
+          await loadLimitsOnInit()
+          displayCopyLimitUI()
+
           scrollToBottom()
         } else {
           alert("Error: " + (result.error || result.message || "Failed to submit document request"))
@@ -910,6 +1066,256 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Make showDocumentForm globally accessible
   window.showDocumentForm = showDocumentForm
+
+  // Fetch and display copy limits in the form
+  async function displayCopyLimitUI() {
+    try {
+      const response = await fetch("/user/copy-limits")
+      const data = await response.json()
+
+      if (data.success) {
+        const limits = data.limits
+        globalCopyLimits = limits // Update global limits
+        updateCopyLimitDisplay(limits)
+      }
+    } catch (error) {
+      console.error("Error fetching copy limits:", error)
+    }
+  }
+
+  // Enhanced updateCopyLimitDisplay to handle submit button visibility
+  function updateCopyLimitDisplay(limits) {
+    const copyInputs = document.querySelectorAll('input[id^="copies-"]')
+    const submitBtn = document.querySelector(".enhanced-submit-btn")
+
+    copyInputs.forEach((input) => {
+      const docTypeId = input.id.replace("copies-", "")
+
+      // Find matching document type
+      const docTypeMap = [
+        { id: "barangay-clearance", name: "barangay clearance" },
+        { id: "barangay-residency", name: "barangay residency" },
+        { id: "barangay-indigency", name: "barangay indigency" },
+      ]
+
+      const docType = docTypeMap.find((dt) => dt.id === docTypeId)
+      if (!docType) return
+
+      const limitInfo = limits[docType.name]
+      if (!limitInfo) return
+
+      const limitContainer = input.closest(".document-specific-form")
+      if (!limitContainer) return
+
+      // Remove existing limit display
+      const existingLimitDisplay = limitContainer.querySelector(".copy-limit-alert")
+      if (existingLimitDisplay) {
+        existingLimitDisplay.remove()
+      }
+
+      // Create persistent limit alert that shows whether limit is reached or not
+      const limitAlert = document.createElement("div")
+      limitAlert.className = "copy-limit-alert"
+
+      if (limitInfo.remaining === 0) {
+        // Limit reached - disable input and show alert
+        limitAlert.innerHTML = `
+          <div style="
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            border: 2px solid #e53935;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          ">
+            <span style="font-size: 24px;">⏰</span>
+            <div style="flex: 1;">
+              <div style="
+                color: #c62828;
+                font-weight: 700;
+                font-size: 15px;
+                margin-bottom: 4px;
+              ">
+                Daily limit reached for ${docType.name.toUpperCase()}
+              </div>
+              <div style="
+                color: #d32f2f;
+                font-size: 13px;
+                font-weight: 500;
+              ">
+                ↻ Resets tomorrow at 12:00 AM
+              </div>
+            </div>
+          </div>
+        `
+
+        // Disable the input
+        input.disabled = true
+        input.value = 0
+        input.style.opacity = "0.5"
+        input.style.cursor = "not-allowed"
+        input.style.backgroundColor = "#ffebee"
+      } else {
+        // Limit not reached - show remaining count
+        limitAlert.innerHTML = `
+          <div style="
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8f5e9 100%);
+            border: 2px solid #1976d2;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          ">
+            <div>
+              <div style="
+                color: #1565c0;
+                font-weight: 700;
+                font-size: 15px;
+                margin-bottom: 4px;
+              ">
+                Daily Copies Remaining
+              </div>
+              <div style="
+                color: #2196f3;
+                font-size: 13px;
+                font-weight: 500;
+              ">
+                Progress: ${limitInfo.used} / ${limitInfo.limit} used
+              </div>
+            </div>
+            <div style="
+              background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+              color: white;
+              padding: 8px 16px;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 16px;
+              min-width: 60px;
+              text-align: center;
+            ">
+              ${limitInfo.remaining} left
+            </div>
+          </div>
+        `
+
+        // Enable the input
+        input.disabled = false
+        input.max = limitInfo.remaining
+        input.style.opacity = "1"
+        input.style.cursor = "pointer"
+        input.style.backgroundColor = "#ffffff"
+      }
+
+      // Insert at the top of the form section
+      limitContainer.insertBefore(limitAlert, limitContainer.firstChild)
+    })
+
+    // Check if ANY selected document can still be requested
+    if (submitBtn) {
+      const selectedForms = document.querySelectorAll(".document-specific-form")
+      let hasAvailableDocument = false
+
+      selectedForms.forEach((form) => {
+        const copyInput = form.querySelector('input[id^="copies-"]')
+        if (copyInput && !copyInput.disabled) {
+          hasAvailableDocument = true
+        }
+      })
+
+      // Hide submit button if NO documents are available to request
+      if (selectedForms.length > 0 && !hasAvailableDocument) {
+        submitBtn.style.display = "none"
+
+        // Add message explaining why button is hidden
+        const noAvailableMsg = document.querySelector(".no-available-msg")
+        if (!noAvailableMsg) {
+          const msg = document.createElement("div")
+          msg.className = "no-available-msg"
+          msg.style.cssText = `
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            border: 2px solid #e53935;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            color: #c62828;
+            font-weight: 600;
+            margin-top: 20px;
+          `
+          msg.innerHTML = `
+            <span style="font-size: 20px;">⏰</span><br>
+            All selected documents have reached their daily limits.<br>
+            <small style="font-size: 13px; opacity: 0.8;">They will reset tomorrow at 12:00 AM</small>
+          `
+          submitBtn.parentNode.appendChild(msg)
+        }
+      } else {
+        submitBtn.style.display = "block"
+
+        // Remove no-available message if it exists
+        const noAvailableMsg = document.querySelector(".no-available-msg")
+        if (noAvailableMsg) {
+          noAvailableMsg.remove()
+        }
+      }
+    }
+  }
+
+  function showResetTimer(resetTimestamp) {
+    const timerContainer = document.createElement("div")
+    timerContainer.className = "reset-timer-display"
+    timerContainer.style.cssText = `
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: linear-gradient(135deg, #fff9e6 0%, #fffde7 100%);
+      border: 2px solid #fbc02d;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 4px 12px rgba(251, 192, 45, 0.3);
+      z-index: 999;
+      font-weight: 600;
+      color: #f57f17;
+      text-align: center;
+      max-width: 250px;
+    `
+
+    function updateTimer() {
+      const now = Date.now()
+      const difference = resetTimestamp - now
+
+      if (difference <= 0) {
+        timerContainer.remove()
+        return
+      }
+
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24)
+      const minutes = Math.floor((difference / (1000 * 60)) % 60)
+      const seconds = Math.floor((difference / 1000) % 60)
+
+      timerContainer.innerHTML = `
+        <div style="font-size: 14px; margin-bottom: 8px;">⏳ Next Reset In:</div>
+        <div style="font-size: 20px; font-weight: 700; font-family: 'Courier New', monospace;">
+          ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}
+        </div>
+        <div style="font-size: 11px; margin-top: 8px; opacity: 0.8;">Resets at 12:00 AM</div>
+      `
+    }
+
+    updateTimer()
+    document.body.appendChild(timerContainer)
+
+    const timerInterval = setInterval(() => {
+      updateTimer()
+      if (Date.now() > resetTimestamp) {
+        clearInterval(timerInterval)
+        timerContainer.remove()
+      }
+    }, 1000)
+  }
 
   // Chat History Functions
   function loadChats() {
@@ -1106,7 +1512,7 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ title: newTitle.trim() }),
+      body: JSON.stringify({ title: newTitle.trim() }), // Corrected: JSON.JSON.stringify to JSON.stringify
     })
       .then((response) => response.json())
       .then((data) => {
@@ -1285,24 +1691,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 })
 
-// Global functions
-function showNotification(message, type = "info") {
-  const notification = document.createElement("div")
-  notification.className = `notification ${type}`
-  notification.textContent = message
-
-  document.body.appendChild(notification)
-
-  setTimeout(() => {
-    notification.classList.add("show")
-  }, 10)
-
-  setTimeout(() => {
-    notification.classList.remove("show")
-    setTimeout(() => {
-      notification.remove()
-    }, 300)
-  }, 3000)
+function viewDocumentPreview(docId) {
+  // Open preview in new tab
+  window.open(`/document/preview/${docId}`, "_blank", "width=900,height=1000,menubar=no,toolbar=no")
 }
 
 window.isUserLoggedIn = () =>
@@ -1385,7 +1776,6 @@ window.performDeleteChat = (chatId) => {
     })
 }
 
-// Add enhanced notification styles
 document.addEventListener("DOMContentLoaded", () => {
   if (!document.getElementById("enhanced-notification-styles")) {
     const style = document.createElement("style")
@@ -1482,7 +1872,6 @@ document.addEventListener("DOMContentLoaded", () => {
         transform: scale(1.1);
       }
 
-      /* Enhanced form styles */
       .enhanced-document-form-container {
         animation: slideInUp 0.4s ease-out;
       }
@@ -1537,7 +1926,6 @@ window.createNewChat = () => {
           `
         }
 
-        // Reload chat list
         fetch("/user/chats")
           .then((response) => response.json())
           .then((data) => {
