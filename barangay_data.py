@@ -7,7 +7,7 @@ Contains all hardcoded information about barangay officials and population data
 BARANGAY_OFFICIALS_INFO = """
 Barangay Amungan Officials:
 
-Punong Barangay (also called Captain, Kapitan, Cap, or Kap): Richard N. Redondo
+Punong Barangay (also called Captain, Kapitan, Cap, or Kap): Benedick R. Reyes
 
 Barangay Kagawad (Councilors):
 - Joseph D. Flauta
