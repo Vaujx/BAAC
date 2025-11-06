@@ -29,6 +29,12 @@ NOTABLE_PLACES = {
     "barangay health center": [
         "barangay_health_center.jpg"
     ],
+    "Beach Resort": [
+        "Beach Resort.jpeg",
+        "Beach Resort1.jpeg",
+        "Beach Resort2.jpeg",
+        "Beach Resort3.jpeg"
+    ],
     "plaza mercado": [
         "plaza_mercado.jpg",
         "plaza_mercado2.jpg",
@@ -46,13 +52,15 @@ PLACE_KEYWORDS = {
     "barangay hall": ["hall", "barangay office", "office", "government office"],
     "barangay hall outside": ["hall outside", "outside hall", "hall exterior", "barangay hall exterior"],
     "barangay health center": ["health center", "clinic", "medical center", "health station"],
-    "plaza mercado": ["plaza", "mercado", "town plaza", "town square", "park"]
+    "plaza mercado": ["plaza", "mercado", "town plaza", "town square", "park"],
+    "Beach Resort": ["Resort", "Beach resort", "beach"]
 }
 
 # Base directory for images
 IMAGE_BASE_DIR = "static/images"
 
 def detect_place_request(user_message: str) -> Optional[str]:
+    message_lower = user_message.lower().strip()
     """
     Detect if the user is requesting to see a notable place in Amungan.
     
@@ -129,7 +137,8 @@ def format_place_response(place: str, image_paths: List[str]) -> Dict[str, Union
         "barangay hall": "This is the Barangay Hall of Amungan, the center of local governance where barangay officials work and community services are provided.",
         "barangay hall outside": "Here's the exterior view of the Barangay Hall of Amungan, showing the building's facade and surroundings.",
         "barangay health center": "This is the Barangay Health Center, which provides basic healthcare services, consultations, and health programs to Amungan residents.",
-        "plaza mercado": "Here's Plaza Mercado, a public space in Amungan where community gatherings, events, and recreational activities take place."
+        "plaza mercado": "Here's Plaza Mercado, a public space in Amungan where community gatherings, events, and recreational activities take place.",
+        "Beach Resort" : "Here's one of the beach resort here in Barangay Amungan"
     }
     
     response_text = place_descriptions.get(place, f"Here's a view of {place.title()} in Barangay Amungan.")
@@ -181,7 +190,7 @@ def is_place_request(user_message: str) -> bool:
     
     # Check for view/see/show keywords combined with place-related words
     view_keywords = ["show", "see", "view", "picture", "photo", "image", "itsura","patingin","look at"]
-    place_related = ["place", "location", "area", "site", "spot", "landmark", "building", "school", "market", "hall", "plaza", "center"]
+    place_related = ["place", "location", "area", "site", "spot", "landmark", "building", "school", "market", "hall", "plaza", "center","beach","resort","beach resort"]
     
     for view_word in view_keywords:
         if view_word in message_lower:
