@@ -10,7 +10,7 @@ Barangay Amungan Officials:
 Punong Barangay (also called Captain, Kapitan, Cap, or Kap): Richard N. Redondo
 
 Barangay Kagawad (Councilors):
-- Joseph
+- Joseph D. Flauta
 - Walter L. Olipane
 - Richard D. Arquero
 - Arnold R. Lonzanida
@@ -22,8 +22,8 @@ Barangay Secretary: Darrel Castrence
 Barangay Treasurer: Rodalyn E. Gutierrez
 
 Sangguniang Kabataan (SK) Officials (in hierarchical order):
-- Carl (SK Chairperson)
-- Arnel
+- Carl Eric B. Rico (SK Chairperson)
+- Arnel Jake E. Mercado
 - Danica D. Barried
 - Marjurine R. Dagsaan
 - Grace E. Ednalaga
@@ -34,7 +34,7 @@ Sangguniang Kabataan (SK) Officials (in hierarchical order):
 - Ellysa Famisan
 
 Purok Presidents (Barangay Amungan has a total of 14 puroks):
-- Purok 1: Felimon
+- Purok 1: Felimon V. Aramay Jr.
 - Purok 2: Joselyn Alarma
 - Purok 3: Alvin Abadam
 - Purok 4: Moises S. Castrence
