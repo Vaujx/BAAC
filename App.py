@@ -7,6 +7,7 @@ from psycopg2 import pool, connect, sql
 import psycopg2.extras
 from datetime import datetime, timedelta
 import logging
+import base64
 import re
 import json
 import jwt
@@ -84,6 +85,11 @@ ADMIN_PASS = os.getenv("ADMIN_PASS", "EGG")
 
 # Database URL - get from environment or use default for development
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:kKJOWLyksTsSHfhmuDBktpxAiuGFKXnH@metro.proxy.rlwy.net:50365/railway")
+
+signatory_info = {
+    "name": "Name Not Set",
+    "title": "Title Not Set"
+}
 
 # PostgreSQL connection pool
 try:
@@ -2420,7 +2426,325 @@ def admin_document_requests():
     finally:
         cursor.close()
         connection.close()
+
+@app.route('/admin/update_barangay_officials', methods=['POST'])
+def update_barangay_officials():
+    if not session.get('admin_authenticated'):
+        return jsonify({"error": "Unauthorized"}), 401
         
+    data = request.json
+    admin_key = data.get('adminKey')
+    admin_pass = data.get('adminPass')
+    
+    # Verify admin credentials
+    if admin_key != ADMIN_KEY or admin_pass != ADMIN_PASS:
+        return jsonify({"error": "Admin credentials are incorrect"}), 400
+    
+    # Extract officials data
+    kapitan = data.get('kapitan', '').strip()
+    sk_chairman = data.get('skChairman', '').strip()
+    sk_officials = data.get('skOfficials', '').strip().split('\n')  # Added SK Officials parsing
+    kagawads = data.get('kagawads', '').strip().split('\n')
+    purok_presidents = data.get('purokPresidents', '').strip().split('\n')
+    
+    # Filter out empty entries
+    sk_officials = [s.strip() for s in sk_officials if s.strip()]  # Filter SK Officials
+    kagawads = [k.strip() for k in kagawads if k.strip()]
+    purok_presidents = [p.strip() for p in purok_presidents if p.strip()]
+    
+    if not kapitan or not sk_chairman or len(sk_officials) == 0 or len(kagawads) == 0 or len(purok_presidents) == 0:
+        return jsonify({"error": "All fields are required"}), 400
+    
+    try:
+        import requests
+        
+        # GitHub API details
+        GITHUB_TOKEN = "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"
+        GITHUB_REPO = "Vaujx/BAAC"
+        GITHUB_FILE = "barangay_data.py"
+        GITHUB_BRANCH = "main"
+        
+        # Build the new barangay_data.py content
+        new_content = '''"""
+Barangay Amungan Data Module
+Contains all hardcoded information about barangay officials and population data
+"""
+
+# Hardcoded Barangay Officials Information
+BARANGAY_OFFICIALS_INFO = """
+Barangay Amungan Officials:
+
+Punong Barangay (also called Captain, Kapitan, Cap, or Kap): ''' + kapitan + '''
+
+Barangay Kagawad (Councilors):
+'''
+        
+        for kagawad in kagawads:
+            new_content += f"- {kagawad}\n"
+        
+        new_content += '''
+Barangay Secretary: Darrel Castrence
+Barangay Treasurer: Rodalyn E. Gutierrez
+
+Sangguniang Kabataan (SK) Officials (in hierarchical order):
+- ''' + sk_chairman + ''' (SK Chairperson)
+'''
+        for official in sk_officials:
+            new_content += f"- {official}\n"
+        
+        new_content += '''
+Purok Presidents (Barangay Amungan has a total of ''' + str(len(purok_presidents)) + ''' puroks):
+'''
+        
+        for i, president in enumerate(purok_presidents, 1):
+            new_content += f"- Purok {i}: {president}\n"
+        
+        new_content += '''
+Population Information of Barangay Amungan by Age Range:
+
+Under 5 Years Old
+Male: 443
+Female: 412
+Total: 855
+
+5 - 9 Years Old
+Male: 481
+Female: 488
+Total: 969
+
+10 - 14 Years Old
+Male: 571
+Female: 533
+Total: 1,104
+
+15 - 19 Years Old
+Male: 581
+Female: 563
+Total: 1,144
+
+20 - 24 Years Old
+Male: 629
+Female: 561
+Total: 1,190
+
+25 - 29 Years Old
+Male: 591
+Female: 607
+Total: 1,198
+
+30 - 34 Years Old
+Male: 517
+Female: 510
+Total: 1,027
+
+35 - 39 Years Old
+Male: 490
+Female: 438
+Total: 928
+
+40 - 44 Years Old
+Male: 401
+Female: 422
+Total: 823
+
+45 - 49 Years Old
+Male: 345
+Female: 393
+Total: 738
+
+50 - 54 Years Old
+Male: 285
+Female: 294
+Total: 579
+
+55 - 59 Years Old
+Male: 268
+Female: 300
+Total: 568
+
+60 - 64 Years Old
+Male: 257
+Female: 230
+Total: 487
+
+65 - 69 Years Old
+Male: 201
+Female: 192
+Total: 393
+
+70 - 74 Years Old
+Male: 124
+Female: 152
+Total: 276
+
+75 - 79 Years Old
+Male: 63
+Female: 88
+Total: 151
+
+80 Years Old and Over
+Male: 43
+Female: 97
+Total: 140
+"""
+
+# Available document types
+AVAILABLE_DOCUMENTS = ["barangay clearance", "barangay indigency", "barangay residency"]
+
+# Helper functions for checking query types
+def is_about_officials(query):
+    """Check if a query is about barangay officials"""
+    query_lower = query.lower()
+
+    # Check for general terms about officials
+    official_terms = [
+        "official", "officials", "barangay official", "barangay officials",
+        "kagawad", "councilor", "council", "secretary", "treasurer",
+        "captain", "kapitan", "chairman", "punong", "kap ", "cap ",
+        "sk", "sangguniang kabataan", "youth council", "youth",
+        "purok", "purok president", "purok leader", "president"
+    ]
+
+    # Check for specific names of officials
+    official_names = [
+        "redondo", "flauta", "olipane", "arquero", "lonzanida", 
+        "sibug", "susa", "aramay", "castrence", "gutierrez",
+        "rico", "mercado", "barried", "dagsaan", "ednalaga",
+        "santos", "macalinao", "rebultan", "famisan",
+        "alarma", "abadam", "dagun", "arcino", "abad",
+        "baluyot", "cristobal", "adona", "mora"
+    ]
+
+    # Check if any term is in the query
+    for term in official_terms:
+        if term in query_lower:
+            return True
+
+    # Check if any name is in the query
+    for name in official_names:
+        if name in query_lower:
+            return True
+
+    return False
+
+def is_about_population(query):
+    """Check if a query is about population information"""
+    query_lower = query.lower()
+
+    # Check for population-related terms
+    population_terms = [
+        "population", "demographics", "residents", "people", "citizens",
+        "age", "gender", "male", "female", "men", "women", "boys", "girls",
+        "statistics", "census", "how many people", "total population"
+    ]
+
+    # Check if any term is in the query
+    for term in population_terms:
+        if term in query_lower:
+            return True
+
+    return False
+
+def detect_document_type(query):
+    """Helper function to detect document type in a query"""
+    query_lower = query.lower()
+
+    # Check for barangay clearance
+    if "clearance" in query_lower:
+        return "barangay clearance"
+
+    # Check for barangay indigency (including common misspellings)
+    if any(word in query_lower for word in ["indigency", "indengency", "indengecy", "indegency"]):
+        return "barangay indigency"
+
+    # Check for barangay residency
+    if "residency" in query_lower:
+        return "barangay residency"
+
+    # If no specific document type is found, check for general document mentions
+    for doc_type in AVAILABLE_DOCUMENTS:
+        if doc_type in query_lower:
+            return doc_type
+
+    return None
+'''
+        
+        # Encode content to base64
+        content_encoded = base64.b64encode(new_content.encode()).decode()
+        
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "BarangayApp"
+        }
+        
+        # Get current file to get its SHA
+        get_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}?ref={GITHUB_BRANCH}"
+        get_response = requests.get(get_url, headers=headers, timeout=10)
+        
+        if get_response.status_code != 200:
+            logger.error(f"Failed to fetch file from GitHub: Status {get_response.status_code}, Response: {get_response.text}")
+            return jsonify({"error": "Failed to access GitHub repository. Check token permissions."}), 500
+        
+        current_sha = get_response.json().get('sha')
+        
+        # Update file on GitHub
+        commit_message = f"[ADMIN] Updated barangay officials - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        update_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+        payload = {
+            "message": commit_message,
+            "content": content_encoded,
+            "sha": current_sha,
+            "branch": GITHUB_BRANCH
+        }
+        
+        update_response = requests.put(update_url, json=payload, headers=headers, timeout=10)
+        
+        if update_response.status_code not in [200, 201]:
+            logger.error(f"Failed to update file on GitHub: Status {update_response.status_code}, Response: {update_response.text}")
+            return jsonify({"error": "Failed to update file on GitHub. Check token permissions."}), 500
+        
+        logger.info("Barangay officials updated successfully on GitHub")
+        return jsonify({"success": True, "message": "Barangay officials updated and committed to GitHub successfully"})
+        
+    except Exception as e:
+        logger.error(f"Error updating barangay officials: {e}")
+        return jsonify({"error": f"Failed to update officials: {str(e)}"}), 500
+
+@app.route('/admin/update_signatory', methods=['POST'])
+def update_signatory():
+    global signatory_info
+    if not session.get('admin_authenticated'):
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    data = request.json
+    admin_key = data.get('adminKey')
+    admin_pass = data.get('adminPass')
+    
+    # Verify admin credentials
+    if admin_key != ADMIN_KEY or admin_pass != ADMIN_PASS:
+        return jsonify({"error": "Admin credentials are incorrect"}), 400
+    
+    attestator_name = data.get('attestatorName', '').strip()
+    attestator_title = data.get('attestatorTitle', '').strip()
+    
+    if not attestator_name or not attestator_title:
+        return jsonify({"error": "Attestator name and title are required"}), 400
+    
+    try:
+        signatory_info["name"] = attestator_name
+        signatory_info["title"] = attestator_title
+        logger.info(f"Signatory updated: {attestator_name} - {attestator_title}")
+        return jsonify({"success": True, "message": "Signatory information updated successfully"})
+    except Exception as e:
+        logger.error(f"Error updating signatory: {e}")
+        return jsonify({"error": f"Failed to update signatory: {str(e)}"}), 500
+
+
+        
+
 # Route to update document status
 @app.route('/admin/update_document_status', methods=['POST'])
 def update_document_status():
@@ -2811,7 +3135,9 @@ def custom_report():
             "statusData": status_data,
             "topQueries": top_queries,
             "userRegData": user_reg_data,
-            "aiInsights": ai_insights
+            "aiInsights": ai_insights,
+            "signatoryName": signatory_info["name"],
+            "signatoryTitle": signatory_info["title"]
         })
     except Exception as e:
         logger.error(f"Error generating custom report: {e}")
