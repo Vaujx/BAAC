@@ -837,7 +837,7 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
+                        body: JSON.JSON.stringify({
                             current_password: currentPassword,
                             new_password: newPassword
                         }),
@@ -881,105 +881,169 @@
                     `;
                     
                     // Fetch user's document requests
-fetch('/user/profile')
-    .then(response => response.json())
-    .then(data => {
-        if (data.document_requests && data.document_requests.length > 0) {
-            // Calculate stats
-            const total = data.document_requests.length;
-            const pending = data.document_requests.filter(doc => doc.status.toLowerCase() === 'pending').length;
-            const approved = data.document_requests.filter(doc => doc.status.toLowerCase() === 'approved').length;
-            const processing = data.document_requests.filter(doc => doc.status.toLowerCase() === 'processing').length;
-            
-            let html = `
-                <div class="documents-header">
-                    <h3>📋 Document Request History</h3>
-                    <p>Track the status of all your document requests</p>
-                </div>
-                
-                <div class="document-stats">
-                    <div class="stat-card">
-                        <div class="stat-number">${total}</div>
-                        <div class="stat-label">Total Requests</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${pending}</div>
-                        <div class="stat-label">Pending</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${approved}</div>
-                        <div class="stat-label">Approved</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${processing}</div>
-                        <div class="stat-label">Processing</div>
-                    </div>
-                </div>
-                
-                <table class="document-table">
-                    <thead>
-                        <tr>
-                            <th>Reference #</th>
-                            <th>Document Type</th>
-                            <th>Submission Date</th>
-                            <th>Status</th>
-                            <th>Admin Reply</th> <!-- ✅ new column -->
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            data.document_requests.forEach(doc => {
-                const statusClass = doc.status.toLowerCase();
-                const date = new Date(doc.submission_date).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                });
-                
-                html += `
-                    <tr>
-                        <td>${doc.reference_number}</td>
-                        <td>
-                            <div class="document-type">${doc.document_type}</div>
-                        </td>
-                        <td>${date}</td>
-                        <td>
-                            <span class="status-badge status-${statusClass}">${doc.status}</span>
-                        </td>
-                        <td>${doc.notes ? doc.notes : "—"}</td> <!-- ✅ show notes -->
-                    </tr>
-                `;
-            });
-            
-            html += '</tbody></table>';
-            documentsContent.innerHTML = html;
-        } else {
-            documentsContent.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📄</div>
-                    <h3>No Document Requests Yet</h3>
-                    <p>You haven't submitted any document requests. Start a conversation with our AI chatbot to request documents from Barangay Amungan.</p>
-                    <button class="empty-state-action" onclick="document.getElementById('documentsModal').style.display='none'; document.getElementById('prompt').focus();">
-                        Start Requesting Documents
-                    </button>
-                </div>
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        documentsContent.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">⚠️</div>
-                <h3>Error Loading Documents</h3>
-                <p>We couldn't load your document requests at this time. Please try again later.</p>
-                <button class="empty-state-action" onclick="location.reload();">
-                    Retry
-                </button>
-            </div>
-        `;
-    });
+                    fetch('/user/profile')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.document_requests && data.document_requests.length > 0) {
+                                // Calculate stats
+                                const total = data.document_requests.length;
+                                const pending = data.document_requests.filter(doc => doc.status.toLowerCase() === 'pending').length;
+                                const approved = data.document_requests.filter(doc => doc.status.toLowerCase() === 'approved').length;
+                                const processing = data.document_requests.filter(doc => doc.status.toLowerCase() === 'processing').length;
+                                
+                                let html = `
+                                    <div class="documents-header">
+                                        <h3>📋 Document Request History</h3>
+                                        <p>Track the status of all your document requests</p>
+                                    </div>
+                                    
+                                    <div class="document-stats">
+                                        <div class="stat-card">
+                                            <div class="stat-number">${total}</div>
+                                            <div class="stat-label">Total Requests</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${pending}</div>
+                                            <div class="stat-label">Pending</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${approved}</div>
+                                            <div class="stat-label">Approved</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-number">${processing}</div>
+                                            <div class="stat-label">Processing</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <table class="document-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Reference #</th>
+                                                <th>Document Type</th>
+                                                <th>Submission Date</th>
+                                                <th>Status</th>
+                                                <th>Admin Reply</th>
+                                                <th>Action</th> <!-- CHANGE: Add new Action column for preview button -->
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                `;
+                                
+                                data.document_requests.forEach(doc => {
+                                    const statusClass = doc.status.toLowerCase();
+                                    const date = new Date(doc.submission_date).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                    });
+                                    
+                                    // CHANGE: Show preview button only if approved
+                                    const previewButton = doc.status.toLowerCase() === 'approved' 
+                                        ? `<button class="preview-btn" onclick="viewDocumentPreview(${doc.id})" style="background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s ease; white-space: nowrap;">👁️ Preview</button>`
+                                        : `<span style="color: #999; font-size: 12px;">—</span>`;
+                                    
+                                    html += `
+                                        <tr>
+                                            <td>${doc.reference_number}</td>
+                                            <td>
+                                                <div class="document-type">${doc.document_type}</div>
+                                            </td>
+                                            <td>${date}</td>
+                                            <td>
+                                                <span class="status-badge status-${statusClass}">${doc.status}</span>
+                                            </td>
+                                            <td>${doc.notes ? doc.notes : "—"}</td>
+                                            <td>${previewButton}</td> <!-- CHANGE: Add preview action cell -->
+                                        </tr>
+                                    `;
+                                });
+                                
+                                html += '</tbody></table>';
+                                documentsContent.innerHTML = html;
+
+                                fetch('/user/copy-limits')
+                                    .then(response => response.json())
+                                    .then(limitData => {
+                                        if (limitData.success) {
+                                            const limitsWidget = document.createElement('div');
+                                            limitsWidget.style.cssText = `
+                                                background: linear-gradient(135deg, #fff9e6 0%, #fffde7 100%);
+                                                border: 2px solid #fbc02d;
+                                                border-radius: 12px;
+                                                padding: 20px;
+                                                margin-bottom: 24px;
+                                                box-shadow: 0 4px 12px rgba(251, 192, 45, 0.2);
+                                            `;
+                                            
+                                            let limitsHTML = `
+                                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                                                    <span style="font-size: 24px;">⏰</span>
+                                                    <h3 style="margin: 0; color: #f57f17; font-size: 18px; font-weight: 700;">Daily Copy Limits</h3>
+                                                </div>
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                                            `;
+                                            
+                                            for (const [docType, limitInfo] of Object.entries(limitData.limits)) {
+                                                const progress = Math.min(100, (limitInfo.used / limitInfo.limit) * 100);
+                                                const statusColor = limitInfo.remaining === 0 ? '#e53935' : limitInfo.used > 0 ? '#fbc02d' : '#4caf50';
+                                                
+                                                limitsHTML += `
+                                                    <div style="background: white; padding: 16px; border-radius: 8px; border-left: 4px solid ${statusColor};">
+                                                        <div style="font-weight: 600; color: #333; margin-bottom: 8px; text-transform: capitalize;">
+                                                            ${docType}
+                                                        </div>
+                                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                                                            <span style="color: #666;">Used: <strong>${limitInfo.used}/${limitInfo.limit}</strong></span>
+                                                            <span style="color: ${statusColor}; font-weight: 600;">${limitInfo.remaining} left</span>
+                                                        </div>
+                                                        <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;">
+                                                            <div style="background: ${statusColor}; height: 100%; width: ${progress}%; transition: width 0.3s ease;"></div>
+                                                        </div>
+                                                        <small style="color: #999; margin-top: 8px; display: block; font-size: 11px;">
+                                                            Resets: ${new Date(limitInfo.reset_time).toLocaleDateString()}
+                                                        </small>
+                                                    </div>
+                                                `;
+                                            }
+                                            
+                                            limitsHTML += '</div>';
+                                            
+                                            // Insert before the documents table
+                                            const documentsHeader = documentsContent.querySelector('.documents-header');
+                                            if (documentsHeader) {
+                                                limitsWidget.innerHTML = limitsHTML;
+                                                documentsHeader.insertAdjacentElement('afterend', limitsWidget);
+                                            }
+                                        }
+                                    })
+                                    .catch(error => console.error('Error fetching limits:', error));
+                            } else {
+                                documentsContent.innerHTML = `
+                                    <div class="empty-state">
+                                        <div class="empty-state-icon">📄</div>
+                                        <h3>No Document Requests Yet</h3>
+                                        <p>You haven't submitted any document requests. Start a conversation with our AI chatbot to request documents from Barangay Amungan.</p>
+                                        <button class="empty-state-action" onclick="document.getElementById('documentsModal').style.display='none'; document.getElementById('prompt').focus();">
+                                            Start Requesting Documents
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            documentsContent.innerHTML = `
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">⚠️</div>
+                                    <h3>Error Loading Documents</h3>
+                                    <p>We couldn't load your document requests at this time. Please try again later.</p>
+                                    <button class="empty-state-action" onclick="location.reload();">
+                                        Retry
+                                    </button>
+                                </div>
+                            `;
+                        });
                 });
             }
             
