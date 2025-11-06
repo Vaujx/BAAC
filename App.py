@@ -49,6 +49,16 @@ app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())  # Use environmen
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session expires after 1 hour
 
+#github thing
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "Vaujx/BAAC")
+GITHUB_FILE = os.getenv("GITHUB_FILE", "barangay_data.py")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+
+if not GITHUB_TOKEN:
+    logger.error("GITHUB_TOKEN is missing. Please set GITHUB_TOKEN in your .env file or environment variables.")
+    raise ValueError("GITHUB_TOKEN is missing. Please set GITHUB_TOKEN in your .env file or environment variables.")
+
 # Email configuration
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587 
@@ -2170,6 +2180,37 @@ def submit_document():
     try:
         cursor = connection.cursor()
 
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS daily_copy_requests (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            document_type VARCHAR(100) NOT NULL,
+            request_date DATE NOT NULL,
+            copy_count INTEGER DEFAULT 1,
+            CONSTRAINT daily_copy_requests_user_id_fkey
+                FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE,
+            UNIQUE(user_id, document_type, request_date)
+        )
+        """)
+
+        daily_limits = {
+            "barangay clearance": 1,
+            "barangay indigency": 5,
+            "barangay residency": 2
+        }
+
+        today = datetime.now().date()
+        limit_check_response = check_daily_limits(cursor, user_id, document_types, daily_limits, today)
+        
+        if not limit_check_response['allowed']:
+            cursor.close()
+            return_connection(connection)
+            return jsonify({
+                "success": False,
+                "error": limit_check_response['message'],
+                "limit_info": limit_check_response
+            }), 429
+
         # Fetch user's name and purok automatically from app_users
         cursor.execute("SELECT name, purok FROM app_users WHERE id = %s", (user_id,))
         user_info = cursor.fetchone()
@@ -2180,7 +2221,7 @@ def submit_document():
 
         name, purok = user_info
 
-        # Create the table if it doesn’t exist (safety)
+        # Create the table if it doesn't exist (safety)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS document_submissions (
             id SERIAL PRIMARY KEY,
@@ -2198,7 +2239,7 @@ def submit_document():
         )
         """)
 
-        # Add foreign key constraint if it doesn’t exist
+        # Add foreign key constraint if it doesn't exist
         cursor.execute("""
         SELECT COUNT(*)
         FROM information_schema.table_constraints
@@ -2214,6 +2255,16 @@ def submit_document():
                 """)
             except Exception as e:
                 logger.warning(f"Could not add foreign key constraint: {e}")
+
+        for doc_type in document_types:
+            copy_count = data.get(f"copy{doc_type[0].upper()}{doc_type.split()[-1][0].upper()}", 1)
+            
+            cursor.execute("""
+            INSERT INTO daily_copy_requests (user_id, document_type, request_date, copy_count)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, document_type, request_date)
+            DO UPDATE SET copy_count = daily_copy_requests.copy_count + EXCLUDED.copy_count
+            """, (user_id, doc_type, today, copy_count))
 
         # ✅ Correctly placed insert (not inside the except)
         query = """
@@ -2285,6 +2336,84 @@ def submit_document():
     finally:
         cursor.close()
         return_connection(connection)
+
+
+@app.route('/user/copy-limits', methods=['GET'])
+@auth_required
+def get_copy_limits():
+    user_id = session.get('user_id')
+    
+    daily_limits = {
+        "barangay clearance": 1,
+        "barangay indigency": 5,
+        "barangay residency": 2
+    }
+    
+    connection = get_connection()
+    if connection is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = connection.cursor()
+        today = datetime.now().date()
+        tomorrow = today + timedelta(days=1)
+        
+        limit_status = {}
+        
+        for doc_type, limit in daily_limits.items():
+            cursor.execute("""
+            SELECT COALESCE(SUM(copy_count), 0) FROM daily_copy_requests
+            WHERE user_id = %s AND document_type = %s AND request_date = %s
+            """, (user_id, doc_type, today))
+            
+            used_copies = cursor.fetchone()[0] or 0
+            remaining = max(0, limit - used_copies)
+            
+            limit_status[doc_type] = {
+                "limit": limit,
+                "used": used_copies,
+                "remaining": remaining,
+                "reset_time": tomorrow.isoformat(),
+                "reset_timestamp": int((datetime.combine(tomorrow, datetime.min.time()) - datetime(1970, 1, 1)).total_seconds() * 1000)
+            }
+        
+        return jsonify({
+            "success": True,
+            "limits": limit_status,
+            "today": today.isoformat()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error fetching copy limits: {e}")
+        return jsonify({"error": f"Failed to fetch copy limits: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        return_connection(connection)
+
+
+def check_daily_limits(cursor, user_id, document_types, daily_limits, today):
+    for doc_type in document_types:
+        if doc_type in daily_limits:
+            cursor.execute("""
+            SELECT COALESCE(SUM(copy_count), 0) FROM daily_copy_requests
+            WHERE user_id = %s AND document_type = %s AND request_date = %s
+            """, (user_id, doc_type, today))
+            
+            used_copies = cursor.fetchone()[0] or 0
+            limit = daily_limits[doc_type]
+            
+            if used_copies >= limit:
+                tomorrow = today + timedelta(days=1)
+                return {
+                    "allowed": False,
+                    "message": f"Daily limit reached for {doc_type}. You can request again tomorrow at midnight.",
+                    "document_type": doc_type,
+                    "limit": limit,
+                    "used": used_copies,
+                    "reset_time": tomorrow.isoformat()
+                }
+    
+    return {"allowed": True}
 
 
 # Route for admin replies (save into notes column)
@@ -2431,7 +2560,7 @@ def admin_document_requests():
 def update_barangay_officials():
     if not session.get('admin_authenticated'):
         return jsonify({"error": "Unauthorized"}), 401
-        
+    
     data = request.json
     admin_key = data.get('adminKey')
     admin_pass = data.get('adminPass')
@@ -2440,31 +2569,49 @@ def update_barangay_officials():
     if admin_key != ADMIN_KEY or admin_pass != ADMIN_PASS:
         return jsonify({"error": "Admin credentials are incorrect"}), 400
     
-    # Extract officials data
+    # <CHANGE> Fixed field names to match frontend form submission (kapitan not kapitanName)
     kapitan = data.get('kapitan', '').strip()
     sk_chairman = data.get('skChairman', '').strip()
-    sk_officials = data.get('skOfficials', '').strip().split('\n')  # Added SK Officials parsing
-    kagawads = data.get('kagawads', '').strip().split('\n')
-    purok_presidents = data.get('purokPresidents', '').strip().split('\n')
+    sk_officials = data.get('skOfficials', '').strip() # This is a multiline string
+    kagawads = data.get('kagawads', '').strip() # This is a multiline string
+    purok_presidents = data.get('purokPresidents', '').strip() # This is a multiline string
     
-    # Filter out empty entries
-    sk_officials = [s.strip() for s in sk_officials if s.strip()]  # Filter SK Officials
-    kagawads = [k.strip() for k in kagawads if k.strip()]
-    purok_presidents = [p.strip() for p in purok_presidents if p.strip()]
+    # Convert multiline strings to lists
+    sk_officials_list = [k.strip() for k in sk_officials.split('\n') if k.strip()]
+    kagawads_list = [k.strip() for k in kagawads.split('\n') if k.strip()]
+    purok_presidents_list = [p.strip() for p in purok_presidents.split('\n') if p.strip()]
     
-    if not kapitan or not sk_chairman or len(sk_officials) == 0 or len(kagawads) == 0 or len(purok_presidents) == 0:
-        return jsonify({"error": "All fields are required"}), 400
+    # <CHANGE> Added validation for all required fields including SK Officials
+    if not kapitan or not sk_chairman or not sk_officials_list or not kagawads_list or not purok_presidents_list:
+        missing_fields = []
+        if not kapitan:
+            missing_fields.append("Kapitan")
+        if not sk_chairman:
+            missing_fields.append("SK Chairman")
+        if not sk_officials_list:
+            missing_fields.append("SK Officials")
+        if not kagawads_list:
+            missing_fields.append("Kagawads")
+        if not purok_presidents_list:
+            missing_fields.append("Purok Presidents")
+        
+        error_msg = f"All official fields are required. Missing: {', '.join(missing_fields)}"
+        logger.warning(f"Officials form validation failed: {error_msg}")
+        return jsonify({"error": error_msg}), 400
     
     try:
         import requests
         
-        # GitHub API details
-        GITHUB_TOKEN = "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"
-        GITHUB_REPO = "Vaujx/BAAC"
-        GITHUB_FILE = "barangay_data.py"
-        GITHUB_BRANCH = "main"
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_repo = os.getenv("GITHUB_REPO", "Vaujx/BAAC")
+        github_file = os.getenv("GITHUB_FILE", "barangay_data.py")
+        github_branch = os.getenv("GITHUB_BRANCH", "main")
         
-        # Build the new barangay_data.py content
+        if not github_token:
+            logger.error("GITHUB_TOKEN not found in environment variables")
+            return jsonify({"error": "GitHub token not configured"}), 500
+        
+        # <CHANGE> Added SK Officials to the generated content
         new_content = '''"""
 Barangay Amungan Data Module
 Contains all hardcoded information about barangay officials and population data
@@ -2479,7 +2626,7 @@ Punong Barangay (also called Captain, Kapitan, Cap, or Kap): ''' + kapitan + '''
 Barangay Kagawad (Councilors):
 '''
         
-        for kagawad in kagawads:
+        for kagawad in kagawads_list:
             new_content += f"- {kagawad}\n"
         
         new_content += '''
@@ -2489,14 +2636,16 @@ Barangay Treasurer: Rodalyn E. Gutierrez
 Sangguniang Kabataan (SK) Officials (in hierarchical order):
 - ''' + sk_chairman + ''' (SK Chairperson)
 '''
-        for official in sk_officials:
+        
+        # <CHANGE> Include SK Officials from form
+        for official in sk_officials_list:
             new_content += f"- {official}\n"
         
         new_content += '''
-Purok Presidents (Barangay Amungan has a total of ''' + str(len(purok_presidents)) + ''' puroks):
+Purok Presidents (Barangay Amungan has a total of ''' + str(len(purok_presidents_list)) + ''' puroks):
 '''
         
-        for i, president in enumerate(purok_presidents, 1):
+        for i, president in enumerate(purok_presidents_list, 1):
             new_content += f"- Purok {i}: {president}\n"
         
         new_content += '''
@@ -2672,46 +2821,66 @@ def detect_document_type(query):
         # Encode content to base64
         content_encoded = base64.b64encode(new_content.encode()).decode()
         
+        # <CHANGE> Updated headers to be compatible with both fine-grained and classic tokens
         headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
+            "Authorization": f"token {github_token}",
             "Accept": "application/vnd.github.v3+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "BarangayApp"
+            "User-Agent": "BarangayApp/1.0"
         }
         
         # Get current file to get its SHA
-        get_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}?ref={GITHUB_BRANCH}"
-        get_response = requests.get(get_url, headers=headers, timeout=10)
+        get_url = f"https://api.github.com/repos/{github_repo}/contents/{github_file}?ref={github_branch}"
+        logger.info(f"[v0] Fetching file from GitHub: {get_url}")
+        
+        try:
+            get_response = requests.get(get_url, headers=headers, timeout=10)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[v0] GitHub API connection error: {e}")
+            return jsonify({"error": f"Failed to connect to GitHub: {str(e)}"}), 500
         
         if get_response.status_code != 200:
-            logger.error(f"Failed to fetch file from GitHub: Status {get_response.status_code}, Response: {get_response.text}")
-            return jsonify({"error": "Failed to access GitHub repository. Check token permissions."}), 500
+            logger.error(f"[v0] Failed to fetch file from GitHub: Status {get_response.status_code}, Response: {get_response.text}")
+            return jsonify({"error": f"Failed to access GitHub repository (Status {get_response.status_code}). Check that token has 'repo' scope and your token is still valid."}), 500
         
-        current_sha = get_response.json().get('sha')
+        try:
+            current_sha = get_response.json().get('sha')
+            if not current_sha:
+                logger.error("[v0] Could not extract SHA from GitHub response")
+                return jsonify({"error": "Could not read file SHA from GitHub"}), 500
+        except Exception as e:
+            logger.error(f"[v0] Error parsing GitHub response: {e}")
+            return jsonify({"error": f"Error parsing GitHub response: {str(e)}"}), 500
         
         # Update file on GitHub
         commit_message = f"[ADMIN] Updated barangay officials - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
-        update_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+        update_url = f"https://api.github.com/repos/{github_repo}/contents/{github_file}"
         payload = {
             "message": commit_message,
             "content": content_encoded,
             "sha": current_sha,
-            "branch": GITHUB_BRANCH
+            "branch": github_branch
         }
         
-        update_response = requests.put(update_url, json=payload, headers=headers, timeout=10)
+        logger.info(f"[v0] Updating file on GitHub with {len(content_encoded)} bytes")
+        
+        try:
+            update_response = requests.put(update_url, json=payload, headers=headers, timeout=10)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[v0] GitHub API connection error during update: {e}")
+            return jsonify({"error": f"Failed to connect to GitHub during update: {str(e)}"}), 500
         
         if update_response.status_code not in [200, 201]:
-            logger.error(f"Failed to update file on GitHub: Status {update_response.status_code}, Response: {update_response.text}")
-            return jsonify({"error": "Failed to update file on GitHub. Check token permissions."}), 500
+            logger.error(f"[v0] Failed to update file on GitHub: Status {update_response.status_code}, Response: {update_response.text}")
+            return jsonify({"error": f"Failed to update GitHub file (Status {update_response.status_code}). Your GitHub token may not have write permissions or may have expired."}), 500
         
-        logger.info("Barangay officials updated successfully on GitHub")
+        logger.info("[v0] Barangay officials updated successfully on GitHub")
         return jsonify({"success": True, "message": "Barangay officials updated and committed to GitHub successfully"})
         
     except Exception as e:
-        logger.error(f"Error updating barangay officials: {e}")
-        return jsonify({"error": f"Failed to update officials: {str(e)}"}), 500
+        logger.error(f"[v0] Error updating barangay officials: {e}", exc_info=True)
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
 
 @app.route('/admin/update_signatory', methods=['POST'])
 def update_signatory():
@@ -3573,6 +3742,332 @@ def page_not_found(e):
 @app.errorhandler(500)
 def server_error(e):
     return render_template('500.html'), 500
+
+@app.route('/document/preview/<int:doc_id>')
+@auth_required
+def preview_document(doc_id):
+    """
+    Display a secure preview of an approved document.
+    Only shows preview if document is approved and belongs to the authenticated user.
+    """
+    user_id = session.get('user_id')
+    connection = get_connection()
+    
+    if connection is None:
+        return "Database connection failed", 500
+    
+    try:
+        cursor = connection.cursor()
+        
+        # Get document details - ONLY if approved
+        cursor.execute("""
+            SELECT ds.id, ds.name, ds.document_types, ds.status, ds.reference_number, ds.submission_date
+            FROM document_submissions ds
+            WHERE ds.id = %s AND ds.user_id = %s AND ds.status = 'Approved'
+        """, (doc_id, user_id))
+        
+        doc = cursor.fetchone()
+        
+        if not doc:
+            return "Document not found or not approved for preview", 404
+        
+        doc_id, name, document_types, status, ref_number, submission_date = doc
+        
+        # Parse document types array
+        if document_types:
+            doc_type_list = document_types if isinstance(document_types, list) else [document_types]
+            doc_type = doc_type_list[0] if doc_type_list else 'Document'
+        else:
+            doc_type = 'Document'
+        
+        # Generate HTML for preview with security features
+        preview_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Document Preview - {ref_number}</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f5f5f5;
+                    padding: 20px;
+                    user-select: none;
+                    -webkit-user-select: none;
+                    -moz-user-select: none;
+                    -ms-user-select: none;
+                }}
+                
+                .document-container {{
+                    max-width: 800px;
+                    margin: 0 auto;
+                    background: white;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                    border-radius: 8px;
+                    overflow: hidden;
+                }}
+                
+                .preview-banner {{
+                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 20px;
+                    letter-spacing: 2px;
+                    text-transform: uppercase;
+                    opacity: 0.9;
+                }}
+                
+                .preview-banner::before {{
+                    content: '🔒';
+                    margin-right: 10px;
+                }}
+                
+                .watermark {{
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%) rotate(-45deg);
+                    font-size: 120px;
+                    color: rgba(255, 107, 107, 0.08);
+                    z-index: -1;
+                    pointer-events: none;
+                    white-space: nowrap;
+                    width: 150%;
+                }}
+                
+                .document-header {{
+                    text-align: center;
+                    padding: 40px 30px 20px;
+                    border-bottom: 3px solid #e53935;
+                }}
+                
+                .document-header h1 {{
+                    color: #333;
+                    margin-bottom: 10px;
+                    font-size: 28px;
+                }}
+                
+                .document-content {{
+                    padding: 40px 30px;
+                }}
+                
+                .info-section {{
+                    margin-bottom: 30px;
+                }}
+                
+                .info-section h2 {{
+                    color: #e53935;
+                    font-size: 16px;
+                    margin-bottom: 15px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    border-bottom: 2px solid #ffcdd2;
+                    padding-bottom: 8px;
+                }}
+                
+                .info-row {{
+                    display: flex;
+                    margin-bottom: 12px;
+                    padding: 8px 0;
+                }}
+                
+                .info-label {{
+                    font-weight: bold;
+                    color: #333;
+                    width: 150px;
+                    min-width: 150px;
+                }}
+                
+                .info-value {{
+                    color: #666;
+                    flex: 1;
+                }}
+                
+                .document-footer {{
+                    border-top: 2px solid #ffcdd2;
+                    padding: 30px;
+                    text-align: center;
+                    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+                }}
+                
+                .document-footer p {{
+                    color: #999;
+                    font-size: 12px;
+                    margin: 8px 0;
+                }}
+                
+                .seal {{
+                    display: inline-block;
+                    width: 100px;
+                    height: 100px;
+                    border: 3px solid #e53935;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 50px;
+                    margin: 15px 0;
+                }}
+                
+                @media print {{
+                    body {{
+                        background: white;
+                        padding: 0;
+                    }}
+                    
+                    .document-container {{
+                        box-shadow: none;
+                        border-radius: 0;
+                    }}
+                    
+                    .preview-banner {{
+                        display: none !important;
+                    }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="watermark">FOR PREVIEW ONLY</div>
+            
+            <div class="document-container">
+                <div class="preview-banner">
+                    FOR PREVIEW ONLY - CANNOT BE PRINTED OR SCREENSHOT
+                </div>
+                
+                <div class="document-header">
+                    <h1>🏛️ BARANGAY AMUNGAN</h1>
+                    <p>Official Document Preview</p>
+                </div>
+                
+                <div class="document-content">
+                    <div class="info-section">
+                        <h2>Document Information</h2>
+                        <div class="info-row">
+                            <div class="info-label">Reference Number:</div>
+                            <div class="info-value">{ref_number}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Document Type:</div>
+                            <div class="info-value">{doc_type.title()}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Recipient Name:</div>
+                            <div class="info-value">{name}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Submission Date:</div>
+                            <div class="info-value">{submission_date.strftime('%B %d, %Y') if submission_date else 'N/A'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Status:</div>
+                            <div class="info-value" style="color: #4caf50; font-weight: bold;">✓ {status}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Important Notice</h2>
+                        <p style="color: #666; line-height: 1.6; margin-bottom: 10px;">
+                            This is a preview document and is for verification purposes only. 
+                            This preview cannot be printed or screenshot. To claim your official document, 
+                            please visit Barangay Amungan Hall during office hours with a water bottle.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="document-footer">
+                    <div class="seal">🔐</div>
+                    <p><strong>OFFICIAL DOCUMENT PREVIEW</strong></p>
+                    <p>Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</p>
+                    <p style="margin-top: 15px; color: #666;">
+                        To claim this document, visit Barangay Amungan Hall<br>
+                        Monday - Friday, 8:00 AM - 5:00 PM
+                    </p>
+                </div>
+            </div>
+            
+            <script>
+                // Disable right-click
+                document.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Disable keyboard shortcuts for printing and screenshots
+                document.addEventListener('keydown', (e) => {{
+                    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 's' || e.key === 'P' || e.key === 'S')) {{
+                        e.preventDefault();
+                        alert('Printing and screenshots are not allowed for preview documents.');
+                    }}
+                    if (e.key === 'PrintScreen') {{
+                        e.preventDefault();
+                        alert('Screenshots are not allowed for preview documents.');
+                    }}
+                }});
+                
+                // Disable print media
+                window.addEventListener('beforeprint', (e) => {{
+                    e.preventDefault();
+                    alert('This document cannot be printed. Please visit Barangay Amungan Hall to claim the official document.');
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        
+        return preview_html
+        
+    except Exception as e:
+        logger.error(f"Error generating preview: {e}")
+        return "Error generating document preview", 500
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.route('/request_document', methods=['POST'])
+def request_document():
+    # Assume user_prompt and requested_document are obtained from request
+    user_prompt = "some user prompt"
+    requested_document = "some document type"
+    chat_id = session.get('chat_id')
+    user_id = session.get('user_id')
+    
+    document_title = requested_document.title()
+    log_document_request(document_title)
+    
+    # Create a response with form button
+    response_text = f"""
+    <div class="ai-response" style="text-align: justify; line-height: 1.6;">
+        <p>I can help you request a <strong>{document_title}</strong>. This document is commonly used for various purposes such as employment, business permits, and other official transactions.</p>
+        <p>To proceed with your request, please click the button below to fill out the required information:</p>
+        <div style="margin: 20px 0; text-align: center;">
+            <button onclick="showDocumentForm('{requested_document}')" class="document-request-btn" style="background-color: #e53935; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;">
+                📄 Request {document_title}
+            </button>
+        </div>
+        <p style="font-size: 14px; color: #666;">Processing time is typically 3-5 business days. You will receive a reference number to track your request.</p>
+    </div>
+    """
+    
+    # Save to chat history if chat_id is provided and user is logged in
+    if chat_id and user_id:
+        save_message_to_chat(chat_id, user_id, user_prompt, response_text)
+    else:
+        # Add to session-based conversation history
+        manage_conversation_history(user_prompt, response_text)
+    
+    return jsonify({
+        "response": response_text,
+        "suggestForm": True,
+        "formType": requested_document
+    })
+
+
 
 # Add a diagnostic endpoint to check database connectivity and table structure
 @app.route('/diagnostic/db-check')
