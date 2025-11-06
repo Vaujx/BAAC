@@ -1546,20 +1546,36 @@
                 e.preventDefault();
                 
                 const kapitan = document.getElementById('kapitan').value;
-                const skChairman = document.getElementById('skChairman').value; // New field
-                const skOfficials = document.getElementById('skOfficials').value; // New field
+                const skChairman = document.getElementById('skChairman').value;
+                const skOfficials = document.getElementById('skOfficials').value;
                 const kagawads = document.getElementById('kagawads').value;
                 const purokPresidents = document.getElementById('purokPresidents').value;
                 const adminKey = document.getElementById('officialsAdminKey').value;
                 const adminPass = document.getElementById('officialsAdminPass').value;
                 
-                // Validate inputs
+                // Enhanced validation with specific field checking
+                console.log('[v0] Form values:', {
+                    kapitan: kapitan ? 'filled' : 'EMPTY',
+                    skChairman: skChairman ? 'filled' : 'EMPTY',
+                    skOfficials: skOfficials ? 'filled' : 'EMPTY',
+                    kagawads: kagawads ? 'filled' : 'EMPTY',
+                    purokPresidents: purokPresidents ? 'filled' : 'EMPTY',
+                    adminKey: adminKey ? 'filled' : 'EMPTY',
+                    adminPass: adminPass ? 'filled' : 'EMPTY'
+                });
+                
                 if (!kapitan.trim() || !skChairman.trim() || !skOfficials.trim() || !kagawads.trim() || !purokPresidents.trim()) {
-                    alert('Please fill in all fields');
+                    const missing = [];
+                    if (!kapitan.trim()) missing.push('Kapitan');
+                    if (!skChairman.trim()) missing.push('SK Chairman');
+                    if (!skOfficials.trim()) missing.push('SK Officials');
+                    if (!kagawads.trim()) missing.push('Kagawads');
+                    if (!purokPresidents.trim()) missing.push('Purok Presidents');
+                    alert(`Please fill in all fields. Missing: ${missing.join(', ')}`);
                     return;
                 }
                 
-                // Count entries (optional, but good for validation feedback)
+                // Count entries for logging
                 const skOfficialCount = skOfficials.trim().split('\n').filter(k => k.trim()).length;
                 const kagawadCount = kagawads.trim().split('\n').filter(k => k.trim()).length;
                 const purokCount = purokPresidents.trim().split('\n').filter(p => p.trim()).length;
@@ -1570,6 +1586,7 @@
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Updating...';
                 
+                // Fixed field names to match backend expectations (kapitan not kapitanName)
                 fetch('/admin/update_barangay_officials', {
                     method: 'POST',
                     headers: {
@@ -1577,8 +1594,8 @@
                     },
                     body: JSON.stringify({
                         kapitan: kapitan,
-                        skChairman: skChairman, // Include new field
-                        skOfficials: skOfficials, // Include new field
+                        skChairman: skChairman,
+                        skOfficials: skOfficials,
                         kagawads: kagawads,
                         purokPresidents: purokPresidents,
                         adminKey: adminKey,
@@ -1587,18 +1604,17 @@
                 })
                 .then(response => response.json())
                 .then(data => {
+                    console.log('[v0] Response from server:', data);
                     if (data.success) {
                         alert('Barangay officials updated and committed to GitHub successfully!');
                         officialsForm.reset();
-                        // Optionally hide the form after successful update
-                        // toggleOfficialsList(); 
                     } else {
                         alert('Error: ' + (data.error || 'Failed to update officials'));
                     }
                 })
                 .catch(error => {
-                    console.error('Error updating officials:', error);
-                    alert('Error updating officials. Please try again.');
+                    console.error('[v0] Error updating officials:', error);
+                    alert('Error updating officials. Please try again. Check browser console for details.');
                 })
                 .finally(() => {
                     submitBtn.disabled = false;
