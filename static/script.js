@@ -115,10 +115,50 @@ async function loadLimitsOnInit() {
     console.error("Error loading initial limits:", error)
   }
 }
+async function initializeTodayDate() {
+  try {
+    const response = await fetch('/api/today-date')
+    const data = await response.json()
+    console.log('[v0] Today\'s date from server:', data.date)
+    console.log('[v0] Full response:', data)
+    return data.date
+  } catch (error) {
+    console.error('[v0] Error fetching date:', error)
+  }
+}
+// <CHANGE> Add this function to monitor date changes and refresh limits daily
+let lastKnownDate = null
+
+async function monitorDateChange() {
+  try {
+    const response = await fetch('/api/today-date')
+    const data = await response.json()
+    const todayDate = data.date
+    
+    if (lastKnownDate === null) {
+      lastKnownDate = todayDate
+      console.log('[v0] Initial date set to:', lastKnownDate)
+    } else if (lastKnownDate !== todayDate) {
+      console.log('[v0] Date changed from', lastKnownDate, 'to', todayDate)
+      lastKnownDate = todayDate
+      // Refresh limits when date changes (midnight passed)
+      await loadLimitsOnInit()
+      console.log('[v0] Limits refreshed for new day:', todayDate)
+    }
+  } catch (error) {
+    console.error('[v0] Error monitoring date:', error)
+  }
+}
+
+// <CHANGE> Check date change every minute
+setInterval(monitorDateChange, 60000)
 
 // Initialize the chat interface
 document.addEventListener("DOMContentLoaded", async () => {
   await loadLimitsOnInit()
+  await initializeTodayDate()
+  await monitorDateChange()
+  //await initializeTodayDate() // TEST - Comment out after testing
 
   // Get the correct scrollable elements
   const chatContainer = document.getElementById("chat-container")
