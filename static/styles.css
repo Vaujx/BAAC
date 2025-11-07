@@ -1206,3 +1206,37 @@ notification {
   background-color: #2196F3;
   color: white;
 }
+
+.copy-btn-minus:hover,
+.copy-btn-plus:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.copy-btn-minus:active,
+.copy-btn-plus:active {
+  transform: scale(0.98);
+}
+
+.copy-display {
+  -moz-appearance: textfield; /* Remove spinner in Firefox */
+}
+
+.copy-display::-webkit-outer-spin-button,
+.copy-display::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 480px) {
+  .copy-btn-minus,
+  .copy-btn-plus {
+    padding: 12px 14px !important;
+    font-size: 20px !important;
+  }
+  
+  .copy-display {
+    font-size: 16px !important;
+  }
+}
