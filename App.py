@@ -13,6 +13,7 @@ import json
 import jwt
 import secrets
 import smtplib
+import pytz
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -468,6 +469,7 @@ def format_response_html(text):
 
     # If no bullet points, return the original text
     return text
+
 
 # Load admin credentials from database
 def load_admin_credentials():
@@ -1173,6 +1175,8 @@ def is_user_logged_in():
             return True
     
     return False
+
+
 
 # Route for the index page (UI interface)
 @app.route('/')
@@ -2336,6 +2340,20 @@ def submit_document():
     finally:
         cursor.close()
         return_connection(connection)
+
+@app.route('/api/today-date', methods=['GET'])
+def get_today_date():
+    """
+    Returns today's date in YYYY-MM-DD format for client-side date synchronization.
+    This helps the system detect date changes and reset daily limits at midnight.
+    """
+    from datetime import datetime
+    today = datetime.now().date()
+    return jsonify({
+        'success': True,
+        'date': str(today),
+        'timestamp': datetime.now().isoformat()
+    })
 
 
 @app.route('/user/copy-limits', methods=['GET'])
