@@ -902,11 +902,46 @@ function showDocumentForm(preselectedTypes = []) {
         </div>
 
         <div>
-          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
-          <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1"
-                 style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease;">
-          <small style="color: #666; font-size: 13px; margin-top: 5px; display: block;"></small>
-        </div>
+  <label style="display: block; margin-bottom: 8px; font-weight: 600; color: ${docConfig.color}; font-size: 15px;">📑 Number of Copies:</label>
+  
+  <!-- <CHANGE> Hide the number input and show only on larger screens -->
+  <input type="number" id="copies-${docConfig.id}" min="1" max="10" value="1"
+         style="width: 100%; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; display: none;">
+  
+  <!-- <CHANGE> Mobile buttons for +/- controls -->
+  <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+    <button type="button" class="copy-btn-minus" data-id="${docConfig.id}" style="
+      background: linear-gradient(135deg, ${docConfig.color}20 0%, ${docConfig.color}10 100%);
+      color: ${docConfig.color};
+      border: 2px solid ${docConfig.color};
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 18px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      min-width: 50px;
+    ">−</button>
+    
+    <input type="number" id="copies-display-${docConfig.id}" class="copy-display" data-id="${docConfig.id}" min="1" max="10" value="1"
+           style="flex: 1; padding: 12px; border: 2px solid ${docConfig.color}40; border-radius: 8px; font-size: 18px; text-align: center; font-weight: 700; background-color: #f9f9f9; cursor: not-allowed; pointer-events: none;">
+    
+    <button type="button" class="copy-btn-plus" data-id="${docConfig.id}" style="
+      background: linear-gradient(135deg, ${docConfig.color} 0%, ${adjustColorBrightness(docConfig.color, -20)} 100%);
+      color: white;
+      border: 2px solid ${docConfig.color};
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 18px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      min-width: 50px;
+    ">+</button>
+  </div>
+  
+  <small style="color: #666; font-size: 13px; margin-top: 8px; display: block; text-align: center;">Tap +/- to adjust copies</small>
+</div>
       `
 
       formSection.innerHTML = specificFields
@@ -924,10 +959,13 @@ function showDocumentForm(preselectedTypes = []) {
         }
       })
 
+      // <CHANGE> Initialize copy buttons after form is created
+      initializeCopyButtons()
+
       // Load and display copy limits after form is updated
       displayCopyLimitUI()
     }
-
+    
     // Function to update submit button with proper logic
     function updateSubmitButton() {
       const count = selectedDocuments.size
@@ -1132,6 +1170,50 @@ function showDocumentForm(preselectedTypes = []) {
     } catch (error) {
       console.error("Error fetching copy limits:", error)
     }
+  }
+
+  // <CHANGE> Handle copy button controls for mobile
+  function initializeCopyButtons() {
+    const minusButtons = document.querySelectorAll('.copy-btn-minus')
+    const plusButtons = document.querySelectorAll('.copy-btn-plus')
+    const displayInputs = document.querySelectorAll('.copy-display')
+
+    minusButtons.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault()
+        const docId = btn.getAttribute('data-id')
+        const displayInput = document.getElementById(`copies-display-${docId}`)
+        const hiddenInput = document.getElementById(`copies-${docId}`)
+        
+        if (displayInput && hiddenInput) {
+          let currentValue = parseInt(displayInput.value)
+          if (currentValue > 1) {
+            currentValue--
+            displayInput.value = currentValue
+            hiddenInput.value = currentValue
+          }
+        }
+      })
+    })
+
+    plusButtons.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault()
+        const docId = btn.getAttribute('data-id')
+        const displayInput = document.getElementById(`copies-display-${docId}`)
+        const hiddenInput = document.getElementById(`copies-${docId}`)
+        
+        if (displayInput && hiddenInput) {
+          const maxCopies = parseInt(hiddenInput.getAttribute('max')) || 10
+          let currentValue = parseInt(displayInput.value)
+          if (currentValue < maxCopies) {
+            currentValue++
+            displayInput.value = currentValue
+            hiddenInput.value = currentValue
+          }
+        }
+      })
+    })
   }
 
   // Enhanced updateCopyLimitDisplay to handle submit button visibility
